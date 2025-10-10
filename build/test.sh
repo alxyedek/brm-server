@@ -5,7 +5,7 @@ echo "Running BRM Server Configuration Tests..."
 echo "=========================================="
 
 # Run tests with coverage
-go test -v -cover -coverprofile=coverage.out ./internal/config/...
+go test -v -cover -coverprofile=coverage.out ./pkg/config/... ./internal/server/...
 
 # Display coverage summary
 echo ""

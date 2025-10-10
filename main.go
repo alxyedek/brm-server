@@ -11,25 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"brm-server/internal/config"
-	"brm-server/utils"
+	"brm/internal/server"
+	"brm/pkg/config"
+	"brm/utils"
 )
-
-// Status handler to show runtime information
-func statusHandler(w http.ResponseWriter, r *http.Request) {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
-	fmt.Fprintf(w, "S3 Server Status\n")
-	fmt.Fprintf(w, "================\n")
-	fmt.Fprintf(w, "Goroutines: %d\n", runtime.NumGoroutine())
-	fmt.Fprintf(w, "OS Threads: %d\n", runtime.NumCPU())
-	fmt.Fprintf(w, "Memory Allocated: %d KB\n", m.Alloc/1024)
-	fmt.Fprintf(w, "Memory Total: %d KB\n", m.TotalAlloc/1024)
-	fmt.Fprintf(w, "GC Cycles: %d\n", m.NumGC)
-	fmt.Fprintf(w, "Goroutine Info: %+v\n", utils.GetGoroutineInfo())
-	// fmt.Fprintf(w, "Buffer Size: %d KB\n", InternalChunkSize/1024)
-}
 
 func main() {
 	// Load configuration
@@ -45,38 +30,24 @@ func main() {
 		Level: logLevel,
 	}))
 
-	server_cfg := cfg.GetSubConfig("server")
-	// Get server configuration with defaults
-	port := server_cfg.GetIntWithDefault("port", 8080)
-	readTimeout := server_cfg.GetIntWithDefault("readTimeout", 15)
-	writeTimeout := server_cfg.GetIntWithDefault("writeTimeout", 15)
-	idleTimeout := server_cfg.GetIntWithDefault("idleTimeout", 60)
+	// Get server sub-configuration
+	serverCfg := cfg.GetSubConfig("server")
 
-	// Set up HTTP server with timeouts from configuration
-	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      nil,
-		ReadTimeout:  time.Duration(readTimeout) * time.Second,
-		WriteTimeout: time.Duration(writeTimeout) * time.Second,
-		IdleTimeout:  time.Duration(idleTimeout) * time.Second,
-	}
+	// Create server
+	srv := server.New(serverCfg, logger)
 
-	// Set up routes
-	http.HandleFunc("/status", statusHandler)
-
-	logger.Info("Starting BRM server", "port", port)
-	logger.Info("Server configuration", "readTimeout", readTimeout, "writeTimeout", writeTimeout, "idleTimeout", idleTimeout)
+	// Log runtime information
 	logger.Info("Runtime information", "maxOSThreads", runtime.NumCPU())
-	var goroutineInfo = utils.GetGoroutineInfo()
+	goroutineInfo := utils.GetGoroutineInfo()
 	logger.Info("Goroutine info", "details", goroutineInfo)
 	logger.Info("Available endpoints", "endpoints", []string{"GET /status - Server status"})
 	logger.Info("Press Ctrl+C to shutdown gracefully")
 
 	// Start server in a goroutine
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed to start", "error", err)
-			os.Exit(1) // Exit the application when server fails to start
+			os.Exit(1)
 		}
 	}()
 
@@ -86,14 +57,13 @@ func main() {
 
 	// Wait for shutdown signal
 	<-sigChan
-	logger.Info("Shutting down server gracefully")
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
-	// Shutdown server (this waits for active connections to finish)
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	// Shutdown server
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server shutdown error", "error", err)
 	}
 

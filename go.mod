@@ -1,4 +1,4 @@
-module brm-server
+module brm
 
 go 1.24.7
 
