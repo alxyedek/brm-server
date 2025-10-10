@@ -2,8 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
-	"io"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -78,15 +76,6 @@ func GetGoroutineInfo() GoroutineInfo {
 	return GoroutineInfo{
 		GoroutineID:  GetCurrentGoroutineID(),
 		ThreadID:     GetCurrentThreadID(),
-		FunctionName: GetCurrentFunctionName(),
+		FunctionName: GetCallerFunctionName(),
 	}
-}
-
-// PrintGoroutineInfo prints goroutine information to the specified writer
-func PrintGoroutineInfo(w io.Writer) {
-	goroutineID := GetCurrentGoroutineID()
-	threadID := GetCurrentThreadID()
-	callerName := GetCallerFunctionName()
-	fmt.Fprintf(w, "Current Goroutine: G%d:%s, Thread ID: %d\n",
-		goroutineID, callerName, threadID)
 }

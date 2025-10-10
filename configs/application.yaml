@@ -1,0 +1,29 @@
+# Base application configuration
+server:
+  port: 8080
+  readTimeout: 15
+  writeTimeout: 15
+  idleTimeout: 60
+
+# Logging configuration
+logging:
+  level: info  # debug, info, warn, error
+
+# Database configuration example
+database:
+  host: "localhost"
+  port: 5432
+  name: "brm_db"
+  username: "brm_user"
+  password: "brm_password"
+  pool:
+    maxSize: 10
+    minSize: 2
+    maxLifetime: 3600
+
+
+# Application metadata
+app:
+  name: "BRM Server"
+  version: "1.0.0"
+  description: "Business Resource Management Server"

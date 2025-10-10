@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"brm-server/internal/config"
 	"brm-server/utils"
 )
 
@@ -25,36 +27,55 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Memory Allocated: %d KB\n", m.Alloc/1024)
 	fmt.Fprintf(w, "Memory Total: %d KB\n", m.TotalAlloc/1024)
 	fmt.Fprintf(w, "GC Cycles: %d\n", m.NumGC)
-	utils.PrintGoroutineInfo(w)
+	fmt.Fprintf(w, "Goroutine Info: %+v\n", utils.GetGoroutineInfo())
 	// fmt.Fprintf(w, "Buffer Size: %d KB\n", InternalChunkSize/1024)
 }
 
 func main() {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Failed to load configuration: %v\n", err)
+		os.Exit(1)
+	}
 
-	// Set up HTTP server with timeouts
+	// Initialize logger with configured log level
+	logLevel := cfg.GetLogLevel(slog.LevelInfo)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
+
+	server_cfg := cfg.GetSubConfig("server")
+	// Get server configuration with defaults
+	port := server_cfg.GetIntWithDefault("port", 8080)
+	readTimeout := server_cfg.GetIntWithDefault("readTimeout", 15)
+	writeTimeout := server_cfg.GetIntWithDefault("writeTimeout", 15)
+	idleTimeout := server_cfg.GetIntWithDefault("idleTimeout", 60)
+
+	// Set up HTTP server with timeouts from configuration
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      nil,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  time.Duration(readTimeout) * time.Second,
+		WriteTimeout: time.Duration(writeTimeout) * time.Second,
+		IdleTimeout:  time.Duration(idleTimeout) * time.Second,
 	}
 
 	// Set up routes
 	http.HandleFunc("/status", statusHandler)
 
-	fmt.Printf("Starting BRM server on :8080\n")
-	// fmt.Printf("Internal buffer size: %s\n", strconv.FormatInt(InternalChunkSize, 10))
-	fmt.Printf("Max OS threads: %d\n", runtime.NumCPU())
-	fmt.Printf("Available endpoints:\n")
-	fmt.Printf("  GET /status - Server status\n")
-	fmt.Printf("Press Ctrl+C to shutdown gracefully\n")
-	utils.PrintGoroutineInfo(os.Stdout)
+	logger.Info("Starting BRM server", "port", port)
+	logger.Info("Server configuration", "readTimeout", readTimeout, "writeTimeout", writeTimeout, "idleTimeout", idleTimeout)
+	logger.Info("Runtime information", "maxOSThreads", runtime.NumCPU())
+	var goroutineInfo = utils.GetGoroutineInfo()
+	logger.Info("Goroutine info", "details", goroutineInfo)
+	logger.Info("Available endpoints", "endpoints", []string{"GET /status - Server status"})
+	logger.Info("Press Ctrl+C to shutdown gracefully")
 
 	// Start server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("Server failed to start: %v\n", err)
+			logger.Error("Server failed to start", "error", err)
 			os.Exit(1) // Exit the application when server fails to start
 		}
 	}()
@@ -65,7 +86,7 @@ func main() {
 
 	// Wait for shutdown signal
 	<-sigChan
-	fmt.Println("\nShutting down server gracefully...")
+	logger.Info("Shutting down server gracefully")
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -73,8 +94,8 @@ func main() {
 
 	// Shutdown server (this waits for active connections to finish)
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		fmt.Printf("Server shutdown error: %v\n", err)
+		logger.Error("Server shutdown error", "error", err)
 	}
 
-	fmt.Println("Server shutdown complete")
+	logger.Info("Server shutdown complete")
 }
