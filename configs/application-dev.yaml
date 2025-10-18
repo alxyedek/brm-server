@@ -6,6 +6,13 @@ server:
 logging:
   level: debug  # More verbose logging for development
 
+# Development blocking configuration
+blocking:
+  operation-type: SLEEP
+  min-block-period-ms: 500
+  max-block-period-ms: 2000
+  response-format: json
+
 # Development database configuration
 database:
   host: "localhost"

@@ -9,6 +9,13 @@ server:
 logging:
   level: info  # debug, info, warn, error
 
+# Blocking operation configuration
+blocking:
+  operation-type: SLEEP
+  min-block-period-ms: 1000
+  max-block-period-ms: 5000
+  response-format: json  # json or text
+
 # Database configuration example
 database:
   host: "localhost"

@@ -9,6 +9,13 @@ server:
 logging:
   level: warn  # Less verbose logging for production
 
+# Production blocking configuration
+blocking:
+  operation-type: MIXED
+  min-block-period-ms: 2000
+  max-block-period-ms: 10000
+  response-format: text
+
 # Production database configuration
 database:
   host: "prod-db-host"

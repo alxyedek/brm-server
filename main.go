@@ -34,13 +34,16 @@ func main() {
 	serverCfg := cfg.GetSubConfig("server")
 
 	// Create server
-	srv := server.New(serverCfg, logger)
+	srv := server.New(serverCfg, cfg, logger)
 
 	// Log runtime information
 	logger.Info("Runtime information", "maxOSThreads", runtime.NumCPU())
 	goroutineInfo := utils.GetGoroutineInfo()
 	logger.Info("Goroutine info", "details", goroutineInfo)
-	logger.Info("Available endpoints", "endpoints", []string{"GET /status - Server status"})
+	logger.Info("Available endpoints", "endpoints", []string{
+		"GET /status - Server status",
+		"GET /rest/blocking - Blocking operation simulator",
+	})
 	logger.Info("Press Ctrl+C to shutdown gracefully")
 
 	// Start server in a goroutine
