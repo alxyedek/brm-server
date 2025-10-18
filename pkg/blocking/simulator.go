@@ -35,7 +35,7 @@ type Simulator struct {
 func New(cfg *config.Config, logger *slog.Logger) *Simulator {
 	operationTypeStr := cfg.GetStringWithDefault("operation-type", "SLEEP")
 	operationType := OperationType(strings.ToUpper(operationTypeStr))
-	
+
 	// Validate operation type
 	switch operationType {
 	case Sleep, FileIO, NetworkIO, Mixed:
@@ -171,15 +171,36 @@ func (s *Simulator) performFileIoBlocking(durationMs int) {
 
 // performNetworkIoBlocking executes network I/O operations with timeout
 func (s *Simulator) performNetworkIoBlocking(durationMs int) {
-	conn, err := net.DialTimeout("tcp", "localhost:12345", time.Duration(durationMs)*time.Millisecond)
-	if err != nil {
-		// Expected - connection refused or timeout
-		s.logger.Debug("Network I/O blocking completed with expected error", "error", err)
-		return
-	}
-	defer conn.Close()
+	// Create a realistic network I/O blocking scenario
+	// Use a combination of connection attempts and actual network operations
 
-	// If somehow connected, just close immediately
+	// Try multiple approaches to create realistic network blocking
+
+	// 1. Try to connect to a non-routable IP (will timeout)
+	conn1, err1 := net.DialTimeout("tcp", "192.0.2.1:80", time.Duration(durationMs/3)*time.Millisecond)
+	if err1 != nil {
+		s.logger.Debug("Network I/O attempt 1 completed", "error", err1, "durationMs", durationMs/3)
+	} else {
+		conn1.Close()
+	}
+
+	// 2. Try to connect to another non-routable IP
+	conn2, err2 := net.DialTimeout("tcp", "198.51.100.1:80", time.Duration(durationMs/3)*time.Millisecond)
+	if err2 != nil {
+		s.logger.Debug("Network I/O attempt 2 completed", "error", err2, "durationMs", durationMs/3)
+	} else {
+		conn2.Close()
+	}
+
+	// 3. Try UDP to a non-routable address (will timeout)
+	conn3, err3 := net.DialTimeout("udp", "203.0.113.1:53", time.Duration(durationMs/3)*time.Millisecond)
+	if err3 != nil {
+		s.logger.Debug("Network I/O attempt 3 completed", "error", err3, "durationMs", durationMs/3)
+	} else {
+		conn3.Close()
+	}
+
+	s.logger.Debug("Network I/O blocking completed", "totalDurationMs", durationMs)
 }
 
 // performMixedBlocking randomly selects one of the three operation types
