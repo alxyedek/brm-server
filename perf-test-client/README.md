@@ -59,8 +59,11 @@ Monitoring duration is automatically calculated based on test parameters with a 
 You can also run individual components:
 
 ```bash
-# Start server with resource limits
+# Start server with resource limits (logs to terminal)
 CPU_CORES=1 GOMAXPROCS=1 GOMEMLIMIT=128MiB ./build/start-limited.sh
+
+# Start server with log redirection to file
+LOG_FILE="logs/server-$(date +%Y%m%d-%H%M%S).log" CPU_CORES=1 GOMAXPROCS=1 GOMEMLIMIT=128MiB ./build/start-limited.sh &
 
 # Run load test directly
 python3 perf-test-client/load-test.py \

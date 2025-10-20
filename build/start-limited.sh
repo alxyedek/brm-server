@@ -44,15 +44,36 @@ else
     done
 fi
 
+# Check if LOG_FILE environment variable is set for log redirection
+if [ -n "$LOG_FILE" ]; then
+    echo "Logging to: $LOG_FILE"
+    # Create logs directory if it doesn't exist
+    mkdir -p "$(dirname "$LOG_FILE")"
+fi
+
 # Check if taskset is available
 if command -v taskset >/dev/null 2>&1; then
     echo "Using taskset to limit CPU cores to: $CPU_MASK"
-    echo "Press Ctrl+C to stop the server"
-    echo ""
-    taskset -c "$CPU_MASK" ./target/brm-server
+    if [ -n "$LOG_FILE" ]; then
+        echo "Server logs will be written to: $LOG_FILE"
+        echo "Press Ctrl+C to stop the server"
+        echo ""
+        taskset -c "$CPU_MASK" ./target/brm-server > "$LOG_FILE" 2>&1
+    else
+        echo "Press Ctrl+C to stop the server"
+        echo ""
+        taskset -c "$CPU_MASK" ./target/brm-server
+    fi
 else
     echo "Warning: taskset not available, using GOMAXPROCS only"
-    echo "Press Ctrl+C to stop the server"
-    echo ""
-    ./target/brm-server
+    if [ -n "$LOG_FILE" ]; then
+        echo "Server logs will be written to: $LOG_FILE"
+        echo "Press Ctrl+C to stop the server"
+        echo ""
+        ./target/brm-server > "$LOG_FILE" 2>&1
+    else
+        echo "Press Ctrl+C to stop the server"
+        echo ""
+        ./target/brm-server
+    fi
 fi

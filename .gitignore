@@ -3,6 +3,7 @@ target/
 
 # Test data
 data/
+testdata/blocking/*.dat
 
 # Go build artifacts
 *.exe
@@ -41,3 +42,4 @@ Thumbs.db
 # Logs
 *.log
 logs/
+testdata/
