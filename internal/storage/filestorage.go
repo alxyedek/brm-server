@@ -11,7 +11,7 @@ import (
 )
 
 // FileStorage implements ArtifactStorage using a file-based storage system
-// with git-like object storage pattern (shasum-based directory structure)
+// with git-like object storage pattern (hash-based directory structure)
 type FileStorage struct {
 	basePath string
 }
@@ -29,40 +29,40 @@ func NewFileStorage(basePath string) (*FileStorage, error) {
 	}, nil
 }
 
-// getDataPath returns the full path to the data file for the given shasum.
+// getDataPath returns the full path to the data file for the given hash.
 // Uses git-like storage: {basePath}/{first2chars}/{remaining62chars}
-func (fs *FileStorage) getDataPath(shasum string) string {
-	if len(shasum) < 2 {
-		// Fallback for invalid shasum (shouldn't happen in practice)
-		return filepath.Join(fs.basePath, shasum)
+func (fs *FileStorage) getDataPath(hash string) string {
+	if len(hash) < 2 {
+		// Fallback for invalid hash (shouldn't happen in practice)
+		return filepath.Join(fs.basePath, hash)
 	}
-	subdir := shasum[:2]
-	filename := shasum[2:]
+	subdir := hash[:2]
+	filename := hash[2:]
 	return filepath.Join(fs.basePath, subdir, filename)
 }
 
-// getMetaPath returns the full path to the metadata file for the given shasum.
+// getMetaPath returns the full path to the metadata file for the given hash.
 // Uses git-like storage: {basePath}/{first2chars}/{remaining62chars}.meta
-func (fs *FileStorage) getMetaPath(shasum string) string {
-	return fs.getDataPath(shasum) + ".meta"
+func (fs *FileStorage) getMetaPath(hash string) string {
+	return fs.getDataPath(hash) + ".meta"
 }
 
-// ensureSubdirectory creates the subdirectory for the given shasum if it doesn't exist.
-func (fs *FileStorage) ensureSubdirectory(shasum string) error {
-	if len(shasum) < 2 {
-		return fmt.Errorf("invalid shasum: too short")
+// ensureSubdirectory creates the subdirectory for the given hash if it doesn't exist.
+func (fs *FileStorage) ensureSubdirectory(hash string) error {
+	if len(hash) < 2 {
+		return fmt.Errorf("invalid hash: too short")
 	}
-	subdir := filepath.Join(fs.basePath, shasum[:2])
+	subdir := filepath.Join(fs.basePath, hash[:2])
 	return os.MkdirAll(subdir, 0755)
 }
 
-// readMeta reads and deserializes the metadata file for the given shasum.
-func (fs *FileStorage) readMeta(shasum string) (*models.ArtifactMeta, error) {
-	metaPath := fs.getMetaPath(shasum)
+// readMeta reads and deserializes the metadata file for the given hash.
+func (fs *FileStorage) readMeta(hash string) (*models.ArtifactMeta, error) {
+	metaPath := fs.getMetaPath(hash)
 	data, err := os.ReadFile(metaPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("artifact not found: %s", shasum)
+			return nil, fmt.Errorf("artifact not found: %s", hash)
 		}
 		return nil, fmt.Errorf("failed to read metadata: %w", err)
 	}
@@ -77,11 +77,11 @@ func (fs *FileStorage) readMeta(shasum string) (*models.ArtifactMeta, error) {
 
 // writeMeta serializes and writes the metadata file for the given artifact.
 func (fs *FileStorage) writeMeta(meta models.ArtifactMeta) error {
-	if err := fs.ensureSubdirectory(meta.Shasum); err != nil {
+	if err := fs.ensureSubdirectory(meta.Hash); err != nil {
 		return err
 	}
 
-	metaPath := fs.getMetaPath(meta.Shasum)
+	metaPath := fs.getMetaPath(meta.Hash)
 	data, err := json.Marshal(meta)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -96,12 +96,12 @@ func (fs *FileStorage) writeMeta(meta models.ArtifactMeta) error {
 
 // readDataRange reads data from the artifact file within the specified range.
 // Returns the data, the actual range read, and an error.
-func (fs *FileStorage) readDataRange(shasum string, start, end int64) ([]byte, models.ByteRange, error) {
-	dataPath := fs.getDataPath(shasum)
+func (fs *FileStorage) readDataRange(hash string, start, end int64) ([]byte, models.ByteRange, error) {
+	dataPath := fs.getDataPath(hash)
 	file, err := os.Open(dataPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, models.ByteRange{}, fmt.Errorf("artifact data not found: %s", shasum)
+			return nil, models.ByteRange{}, fmt.Errorf("artifact data not found: %s", hash)
 		}
 		return nil, models.ByteRange{}, fmt.Errorf("failed to open data file: %w", err)
 	}
@@ -155,12 +155,12 @@ func (fs *FileStorage) readDataRange(shasum string, start, end int64) ([]byte, m
 // writeDataRange writes data to the artifact file at the specified offset.
 // If the file doesn't exist, it will be created. For partial writes, the file
 // will be extended if necessary.
-func (fs *FileStorage) writeDataRange(shasum string, data []byte, offset int64) error {
-	if err := fs.ensureSubdirectory(shasum); err != nil {
+func (fs *FileStorage) writeDataRange(hash string, data []byte, offset int64) error {
+	if err := fs.ensureSubdirectory(hash); err != nil {
 		return err
 	}
 
-	dataPath := fs.getDataPath(shasum)
+	dataPath := fs.getDataPath(hash)
 	file, err := os.OpenFile(dataPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open data file: %w", err)
@@ -180,112 +180,100 @@ func (fs *FileStorage) writeDataRange(shasum string, data []byte, offset int64) 
 	return nil
 }
 
-// Create stores a new artifact. The Artifact's Data field may contain full data or a byte range.
-// Returns the created ArtifactMeta or an error.
-func (fs *FileStorage) Create(artifact models.Artifact) (*models.ArtifactMeta, error) {
+// Create stores a new artifact data file. Only creates the data, not metadata.
+// Returns an error if creation fails.
+func (fs *FileStorage) Create(hash string, data []byte) error {
 	// Ensure subdirectory exists
-	if err := fs.ensureSubdirectory(artifact.Meta.Shasum); err != nil {
-		return nil, err
-	}
-
-	// Write metadata
-	if err := fs.writeMeta(artifact.Meta); err != nil {
-		return nil, err
+	if err := fs.ensureSubdirectory(hash); err != nil {
+		return err
 	}
 
 	// Write data file (write at offset 0, which creates/overwrites the file)
-	if err := fs.writeDataRange(artifact.Meta.Shasum, artifact.Data, 0); err != nil {
-		return nil, err
+	if err := fs.writeDataRange(hash, data, 0); err != nil {
+		return err
 	}
 
-	// Return a copy of the metadata
-	result := artifact.Meta
-	return &result, nil
+	return nil
 }
 
 // Read retrieves an artifact based on the request. The Range field in ArtifactRequest
 // specifies which byte range to retrieve. Returns ArtifactResponse with the actual range returned.
 func (fs *FileStorage) Read(request models.ArtifactRequest) (*models.ArtifactResponse, error) {
-	// Read metadata
-	meta, err := fs.readMeta(request.Meta.Shasum)
-	if err != nil {
-		return nil, err
-	}
-
 	// Read data range
-	data, actualRange, err := fs.readDataRange(request.Meta.Shasum, request.Range.Start, request.Range.End)
+	data, actualRange, err := fs.readDataRange(request.Hash, request.Range.Start, request.Range.End)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create response
 	response := &models.ArtifactResponse{
-		Meta: *meta,
-		Artifact: models.Artifact{
-			Meta: *meta,
-			Data: data,
-		},
-		Range: actualRange,
+		Request: request,
+		Data:    data,
+		Range:   actualRange,
 	}
 
 	return response, nil
 }
 
-// Update modifies an existing artifact. The Artifact's Data field may contain full data
-// or a byte range for partial updates. Returns the updated ArtifactMeta or an error.
-func (fs *FileStorage) Update(artifact models.Artifact) (*models.ArtifactMeta, error) {
-	// Verify artifact exists
-	existingMeta, err := fs.readMeta(artifact.Meta.Shasum)
+// Update modifies an existing artifact by replacing the specified byte range.
+// The range may extend beyond the current file length (append behavior).
+// Only updates data, not metadata. Returns an error if update fails.
+func (fs *FileStorage) Update(update models.ArtifactRangeUpdate) error {
+	hash := update.Hash
+	rangeStart := update.Range.Start
+	data := update.Data
+
+	// Ensure subdirectory exists
+	if err := fs.ensureSubdirectory(hash); err != nil {
+		return err
+	}
+
+	dataPath := fs.getDataPath(hash)
+	file, err := os.OpenFile(dataPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to open data file: %w", err)
+	}
+	defer file.Close()
+
+	// Get current file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %w", err)
+	}
+	currentSize := fileInfo.Size()
+
+	// If range.Start exceeds current file size, we need to pad with zeros
+	if rangeStart > currentSize {
+		// Seek to end of file
+		if _, err := file.Seek(currentSize, io.SeekStart); err != nil {
+			return fmt.Errorf("failed to seek to end: %w", err)
+		}
+		// Write zeros to pad up to rangeStart
+		paddingSize := rangeStart - currentSize
+		zeros := make([]byte, paddingSize)
+		if _, err := file.Write(zeros); err != nil {
+			return fmt.Errorf("failed to write padding: %w", err)
+		}
 	}
 
-	// Determine if this is a full update or partial update
-	// If Data length matches the existing length, treat as full update (overwrite from start)
-	// Otherwise, write at offset 0 (which will overwrite from the beginning)
-	// For true partial updates with offset, the caller would need to provide offset info
-	// For now, we'll write the data starting at offset 0
-	offset := int64(0)
-
-	// If the data length is less than the existing length, we might want to preserve the rest
-	// But per plan: "Direct write for partial updates (no merging with existing data)"
-	// So we'll just write the data at the specified offset
-	if err := fs.writeDataRange(artifact.Meta.Shasum, artifact.Data, offset); err != nil {
-		return nil, err
+	// Seek to the start position
+	if _, err := file.Seek(rangeStart, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek to position: %w", err)
 	}
 
-	// Update metadata if provided
-	// Merge with existing metadata, keeping existing values if new ones are empty/zero
-	updatedMeta := *existingMeta
-	if artifact.Meta.Name != "" {
-		updatedMeta.Name = artifact.Meta.Name
-	}
-	if artifact.Meta.CreatedTimestamp != 0 {
-		updatedMeta.CreatedTimestamp = artifact.Meta.CreatedTimestamp
-	}
-	if artifact.Meta.Repo != "" {
-		updatedMeta.Repo = artifact.Meta.Repo
-	}
-	// Update length based on actual data written
-	// If we wrote at offset 0, the new length is max(offset + len(data), existing length)
-	// But for simplicity, if offset is 0 and we have data, update length to data length
-	if offset == 0 && len(artifact.Data) > 0 {
-		updatedMeta.Length = int64(len(artifact.Data))
+	// Write the data
+	if _, err := file.Write(data); err != nil {
+		return fmt.Errorf("failed to write data: %w", err)
 	}
 
-	// Write updated metadata
-	if err := fs.writeMeta(updatedMeta); err != nil {
-		return nil, err
-	}
-
-	return &updatedMeta, nil
+	return nil
 }
 
-// Delete removes an artifact identified by the shasum in ArtifactMeta.
+// Delete removes an artifact identified by the hash.
 // Returns an error if the artifact doesn't exist or deletion fails.
-func (fs *FileStorage) Delete(meta models.ArtifactMeta) error {
-	dataPath := fs.getDataPath(meta.Shasum)
-	metaPath := fs.getMetaPath(meta.Shasum)
+func (fs *FileStorage) Delete(hash string) error {
+	dataPath := fs.getDataPath(hash)
+	metaPath := fs.getMetaPath(hash)
 
 	// Delete data file
 	if err := os.Remove(dataPath); err != nil && !os.IsNotExist(err) {
@@ -298,46 +286,53 @@ func (fs *FileStorage) Delete(meta models.ArtifactMeta) error {
 	}
 
 	// Optionally remove subdirectory if empty (best effort, ignore errors)
-	if len(meta.Shasum) >= 2 {
-		subdir := filepath.Join(fs.basePath, meta.Shasum[:2])
+	if len(hash) >= 2 {
+		subdir := filepath.Join(fs.basePath, hash[:2])
 		os.Remove(subdir) // Ignore error - directory might not be empty or might not exist
 	}
 
 	return nil
 }
 
-// GetMeta retrieves the metadata for an artifact identified by the shasum in ArtifactMeta.
+// GetMeta retrieves the metadata for an artifact identified by the hash.
 // Returns the ArtifactMeta or an error if the artifact doesn't exist.
-func (fs *FileStorage) GetMeta(meta models.ArtifactMeta) (*models.ArtifactMeta, error) {
-	return fs.readMeta(meta.Shasum)
+func (fs *FileStorage) GetMeta(hash string) (*models.ArtifactMeta, error) {
+	return fs.readMeta(hash)
 }
 
-// UpdateMeta updates the metadata for an artifact identified by the shasum in ArtifactMeta.
-// Returns the updated ArtifactMeta or an error if the artifact doesn't exist or update fails.
+// UpdateMeta updates the metadata for an artifact identified by the hash in ArtifactMeta.
+// If metadata doesn't exist, it will be created. Returns the updated ArtifactMeta or an error.
 func (fs *FileStorage) UpdateMeta(meta models.ArtifactMeta) (*models.ArtifactMeta, error) {
-	// Verify artifact exists
-	existingMeta, err := fs.readMeta(meta.Shasum)
+	// Try to read existing metadata
+	existingMeta, err := fs.readMeta(meta.Hash)
+
+	var updatedMeta models.ArtifactMeta
 	if err != nil {
-		return nil, err
+		// Metadata doesn't exist, create new one
+		updatedMeta = meta
+		// Ensure hash is set
+		if updatedMeta.Hash == "" {
+			updatedMeta.Hash = meta.Hash
+		}
+	} else {
+		// Merge with existing metadata, keeping existing values if new ones are empty/zero
+		updatedMeta = *existingMeta
+		if meta.Name != "" {
+			updatedMeta.Name = meta.Name
+		}
+		if meta.CreatedTimestamp != 0 {
+			updatedMeta.CreatedTimestamp = meta.CreatedTimestamp
+		}
+		if meta.Repo != "" {
+			updatedMeta.Repo = meta.Repo
+		}
+		if meta.Length != 0 {
+			updatedMeta.Length = meta.Length
+		}
+		// Hash should not be updated, keep existing
 	}
 
-	// Merge with existing metadata, keeping existing values if new ones are empty/zero
-	updatedMeta := *existingMeta
-	if meta.Name != "" {
-		updatedMeta.Name = meta.Name
-	}
-	if meta.CreatedTimestamp != 0 {
-		updatedMeta.CreatedTimestamp = meta.CreatedTimestamp
-	}
-	if meta.Repo != "" {
-		updatedMeta.Repo = meta.Repo
-	}
-	if meta.Length != 0 {
-		updatedMeta.Length = meta.Length
-	}
-	// Shasum should not be updated, keep existing
-
-	// Write updated metadata
+	// Write metadata (create or update)
 	if err := fs.writeMeta(updatedMeta); err != nil {
 		return nil, err
 	}

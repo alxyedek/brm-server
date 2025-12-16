@@ -4,15 +4,14 @@ package models
 type ArtifactMeta struct {
 	Name             string `json:"name"`
 	CreatedTimestamp int64  `json:"createdTimestamp"`
-	Shasum           string `json:"shasum"` // SHA256 hash used as identifier
+	Hash             string `json:"hash"`   // Hash used as identifier (e.g., SHA256)
 	Repo             string `json:"repo"`   // Repository path in format "type:alias" (e.g., "docker:hub.docker.com")
 	Length           int64  `json:"length"` // Length of the artifact in bytes
 }
 
-// Artifact represents an artifact with its metadata and binary data
+// Artifact represents the binary data of an artifact
 type Artifact struct {
-	Meta ArtifactMeta `json:"meta"`
-	Data []byte       `json:"data"`
+	Data []byte `json:"data"`
 }
 
 // ByteRange represents a byte range for partial content requests.
@@ -27,43 +26,52 @@ type ByteRange struct {
 
 // ArtifactRequest represents a request for an artifact with optional byte range
 type ArtifactRequest struct {
-	Meta  ArtifactMeta `json:"meta"`
-	Range ByteRange    `json:"range"`
+	Hash  string    `json:"hash"`  // Hash used to identify the artifact
+	Range ByteRange `json:"range"` // Byte range to retrieve
 }
 
-// ArtifactResponse represents a response containing an artifact and the actual byte range returned.
+// ArtifactResponse represents a response containing artifact data and the actual byte range returned.
 // The Range field contains the actual returned range, which may differ from the requested range
 // if the artifact is shorter than requested (e.g., if End exceeds artifact length, or Start exceeds it).
 type ArtifactResponse struct {
-	Meta     ArtifactMeta `json:"meta"`
-	Artifact Artifact     `json:"artifact"`
-	Range    ByteRange    `json:"range"` // Actual returned byte range
+	Request ArtifactRequest `json:"request"` // The original request
+	Data    []byte          `json:"data"`    // The actual data returned
+	Range   ByteRange       `json:"range"`   // Actual returned byte range
+}
+
+// ArtifactRangeUpdate represents an update operation for a specific byte range of an artifact.
+// The range may extend beyond the current file length (append behavior).
+type ArtifactRangeUpdate struct {
+	Hash  string    `json:"hash"`  // Hash used to identify the artifact
+	Range ByteRange `json:"range"` // Byte range to update (can be partial or full append)
+	Data  []byte    `json:"data"`  // Data to write at the specified range
 }
 
 // ArtifactStorage is an interface for artifact storage operations.
-// The Data field in Artifact may represent a byte range for partial operations.
+// Artifact (data) and ArtifactMeta are independent objects matched by hash.
 type ArtifactStorage interface {
-	// Create stores a new artifact. The Artifact's Data field may contain full data or a byte range.
-	// Returns the created ArtifactMeta or an error.
-	Create(artifact Artifact) (*ArtifactMeta, error)
+	// Create stores a new artifact data file. Only creates the data, not metadata.
+	// Returns an error if creation fails.
+	Create(hash string, data []byte) error
 
 	// Read retrieves an artifact based on the request. The Range field in ArtifactRequest
 	// specifies which byte range to retrieve. Returns ArtifactResponse with the actual range returned.
 	Read(request ArtifactRequest) (*ArtifactResponse, error)
 
-	// Update modifies an existing artifact. The Artifact's Data field may contain full data
-	// or a byte range for partial updates. Returns the updated ArtifactMeta or an error.
-	Update(artifact Artifact) (*ArtifactMeta, error)
+	// Update modifies an existing artifact by replacing the specified byte range.
+	// The range may extend beyond the current file length (append behavior).
+	// Only updates data, not metadata. Returns an error if update fails.
+	Update(update ArtifactRangeUpdate) error
 
-	// Delete removes an artifact identified by the shasum in ArtifactMeta.
+	// Delete removes an artifact identified by the hash.
 	// Returns an error if the artifact doesn't exist or deletion fails.
-	Delete(meta ArtifactMeta) error
+	Delete(hash string) error
 
-	// GetMeta retrieves the metadata for an artifact identified by the shasum in ArtifactMeta.
+	// GetMeta retrieves the metadata for an artifact identified by the hash.
 	// Returns the ArtifactMeta or an error if the artifact doesn't exist.
-	GetMeta(meta ArtifactMeta) (*ArtifactMeta, error)
+	GetMeta(hash string) (*ArtifactMeta, error)
 
-	// UpdateMeta updates the metadata for an artifact identified by the shasum in ArtifactMeta.
-	// Returns the updated ArtifactMeta or an error if the artifact doesn't exist or update fails.
+	// UpdateMeta updates the metadata for an artifact identified by the hash in ArtifactMeta.
+	// If metadata doesn't exist, it will be created. Returns the updated ArtifactMeta or an error.
 	UpdateMeta(meta ArtifactMeta) (*ArtifactMeta, error)
 }
