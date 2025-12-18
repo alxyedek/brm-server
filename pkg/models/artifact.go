@@ -1,77 +1,58 @@
 package models
 
+import (
+	"context"
+	"io"
+)
+
 // ArtifactMeta holds metadata about an artifact
 type ArtifactMeta struct {
 	Name             string `json:"name"`
 	CreatedTimestamp int64  `json:"createdTimestamp"`
-	Hash             string `json:"hash"`   // Hash used as identifier (e.g., SHA256)
-	Repo             string `json:"repo"`   // Repository path in format "type:alias" (e.g., "docker:hub.docker.com")
-	Length           int64  `json:"length"` // Length of the artifact in bytes
+	Hash             string `json:"hash"`
+	Repo             string `json:"repo"`
+	Length           int64  `json:"length"`
 }
 
-// Artifact represents the binary data of an artifact
-type Artifact struct {
-	Data []byte `json:"data"`
-}
+// Artifact struct is REMOVED.
+// We do not want a struct representing the binary data in memory.
+// We use io.Reader and io.ReadCloser instead.
 
 // ByteRange represents a byte range for partial content requests.
-// Start is inclusive (0-based), End is exclusive (like Go slices).
-// If End is -1, it represents "until the end of artifact data".
-// For example, Start=0, End=1024 represents bytes 0-1023.
-// Start=1024, End=-1 represents bytes 1024 until the end.
+// Switching to Length is preferred over End for consistency with Go IO interfaces.
 type ByteRange struct {
-	Start int64 `json:"start"` // Starting byte position (inclusive)
-	End   int64 `json:"end"`   // Ending byte position (exclusive). -1 means "until the end"
+	Offset int64 `json:"offset"` // Starting byte position
+	Length int64 `json:"length"` // Number of bytes to read/write. -1 means "until the end"
 }
 
-// ArtifactRequest represents a request for an artifact with optional byte range
-type ArtifactRequest struct {
-	Hash  string    `json:"hash"`  // Hash used to identify the artifact
-	Range ByteRange `json:"range"` // Byte range to retrieve
+// ArtifactRange identifies a specific range within an artifact by hash.
+// It replaces ArtifactRequest, ArtifactResponse, and ArtifactRangeUpdate.
+type ArtifactRange struct {
+	Hash  string    `json:"hash"`
+	Range ByteRange `json:"range"`
 }
 
-// ArtifactResponse represents a response containing artifact data and the actual byte range returned.
-// The Range field contains the actual returned range, which may differ from the requested range
-// if the artifact is shorter than requested (e.g., if End exceeds artifact length, or Start exceeds it).
-type ArtifactResponse struct {
-	Request ArtifactRequest `json:"request"` // The original request
-	Data    []byte          `json:"data"`    // The actual data returned
-	Range   ByteRange       `json:"range"`   // Actual returned byte range
-}
-
-// ArtifactRangeUpdate represents an update operation for a specific byte range of an artifact.
-// The range may extend beyond the current file length (append behavior).
-type ArtifactRangeUpdate struct {
-	Hash  string    `json:"hash"`  // Hash used to identify the artifact
-	Range ByteRange `json:"range"` // Byte range to update (can be partial or full append)
-	Data  []byte    `json:"data"`  // Data to write at the specified range
-}
-
-// ArtifactStorage is an interface for artifact storage operations.
-// Artifact (data) and ArtifactMeta are independent objects matched by hash.
+// ArtifactStorage is the high-performance interface.
 type ArtifactStorage interface {
-	// Create stores a new artifact data file. Only creates the data, not metadata.
-	// Returns an error if creation fails.
-	Create(hash string, data []byte) error
+	// Create streams data from 'r' to storage.
+	// We include 'size' because many storage backends (allocators/S3) need a size hint.
+	// If size is unknown, pass -1 (though this may disable some optimizations).
+	// The 'meta' parameter is optional (can be nil). If provided, metadata is stored atomically with the data.
+	Create(ctx context.Context, hash string, r io.Reader, size int64, meta *ArtifactMeta) error
 
-	// Read retrieves an artifact based on the request. The Range field in ArtifactRequest
-	// specifies which byte range to retrieve. Returns ArtifactResponse with the actual range returned.
-	Read(request ArtifactRequest) (*ArtifactResponse, error)
+	// Read returns a stream (rc) for the requested data.
+	// It returns 'actual' containing the actual range being returned (calculated).
+	// This is useful if the requested Length was -1 or exceeded the file size.
+	// IMPORTANT: The caller MUST close rc.
+	Read(ctx context.Context, req ArtifactRange) (rc io.ReadCloser, actual ArtifactRange, err error)
 
-	// Update modifies an existing artifact by replacing the specified byte range.
-	// The range may extend beyond the current file length (append behavior).
-	// Only updates data, not metadata. Returns an error if update fails.
-	Update(update ArtifactRangeUpdate) error
+	// Update modifies a specific range by streaming data from 'r'.
+	Update(ctx context.Context, req ArtifactRange, r io.Reader) error
 
-	// Delete removes an artifact identified by the hash.
-	// Returns an error if the artifact doesn't exist or deletion fails.
-	Delete(hash string) error
+	// Delete removes an artifact.
+	Delete(ctx context.Context, hash string) error
 
-	// GetMeta retrieves the metadata for an artifact identified by the hash.
-	// Returns the ArtifactMeta or an error if the artifact doesn't exist.
-	GetMeta(hash string) (*ArtifactMeta, error)
-
-	// UpdateMeta updates the metadata for an artifact identified by the hash in ArtifactMeta.
-	// If metadata doesn't exist, it will be created. Returns the updated ArtifactMeta or an error.
-	UpdateMeta(meta ArtifactMeta) (*ArtifactMeta, error)
+	// Meta operations
+	GetMeta(ctx context.Context, hash string) (*ArtifactMeta, error)
+	UpdateMeta(ctx context.Context, meta ArtifactMeta) (*ArtifactMeta, error)
 }

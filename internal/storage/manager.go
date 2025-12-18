@@ -35,7 +35,7 @@ func GetManager() *StorageManager {
 
 // init registers built-in storage factory functions
 func (sm *StorageManager) init() {
-	// Register FileStorage factory
+	// Register SimpleFileStorage factory
 	sm.RegisterFactory("std.filestorage", func(params ...interface{}) (models.ArtifactStorage, error) {
 		if len(params) == 0 {
 			return nil, fmt.Errorf("filestorage requires basePath parameter")
@@ -44,7 +44,7 @@ func (sm *StorageManager) init() {
 		if !ok {
 			return nil, fmt.Errorf("filestorage basePath must be a string")
 		}
-		return NewFileStorage(basePath)
+		return NewSimpleFileStorage(basePath)
 	})
 }
 
