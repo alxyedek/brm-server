@@ -23,7 +23,7 @@ func TestStorageManagerCreate(t *testing.T) {
 		// Verify storage works
 		hash := "test123"
 		testData := []byte("test")
-		err = storage.Create(ctx, hash, bytes.NewReader(testData), int64(len(testData)), nil)
+		_, err = storage.Create(ctx, hash, bytes.NewReader(testData), int64(len(testData)), nil)
 		if err != nil {
 			t.Fatalf("Storage operation failed: %v", err)
 		}

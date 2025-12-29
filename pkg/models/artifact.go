@@ -2,16 +2,38 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
 
+// ArtifactReference represents a reference to an artifact by a specific name and repo
+type ArtifactReference struct {
+	Name                string `json:"name"`
+	Repo                string `json:"repo"`
+	ReferencedTimestamp int64  `json:"referencedTimestamp"`
+}
+
 // ArtifactMeta holds metadata about an artifact
 type ArtifactMeta struct {
-	Name             string `json:"name"`
-	CreatedTimestamp int64  `json:"createdTimestamp"`
-	Hash             string `json:"hash"`
-	Repo             string `json:"repo"`
-	Length           int64  `json:"length"`
+	Hash             string              `json:"hash"`
+	Length           int64               `json:"length"`
+	CreatedTimestamp int64               `json:"createdTimestamp"` // When artifact data was first created
+	References       []ArtifactReference `json:"references"`       // List of references to this artifact
+}
+
+// HashConflictError is returned when Create is called with a size that doesn't match an existing artifact
+type HashConflictError struct {
+	Hash           string
+	ExistingLength int64
+	ProvidedLength int64
+	Message        string
+}
+
+func (e *HashConflictError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return fmt.Sprintf("hash conflict: artifact with hash %s already exists with length %d, but provided length is %d", e.Hash, e.ExistingLength, e.ProvidedLength)
 }
 
 // Artifact struct is REMOVED.
@@ -38,7 +60,9 @@ type ArtifactStorage interface {
 	// We include 'size' because many storage backends (allocators/S3) need a size hint.
 	// If size is unknown, pass -1 (though this may disable some optimizations).
 	// The 'meta' parameter is optional (can be nil). If provided, metadata is stored atomically with the data.
-	Create(ctx context.Context, hash string, r io.Reader, size int64, meta *ArtifactMeta) error
+	// Returns the final metadata state (merged if artifact existed, new if created).
+	// If artifact exists, validates length match and merges references without writing data.
+	Create(ctx context.Context, hash string, r io.Reader, size int64, meta *ArtifactMeta) (*ArtifactMeta, error)
 
 	// Read returns a stream (rc) for the requested data.
 	// It returns 'actual' containing the actual range being returned (calculated).
@@ -49,8 +73,10 @@ type ArtifactStorage interface {
 	// Update modifies a specific range by streaming data from 'r'.
 	Update(ctx context.Context, req ArtifactRange, r io.Reader) error
 
-	// Delete removes an artifact.
-	Delete(ctx context.Context, hash string) error
+	// Delete removes a specific reference to an artifact.
+	// If no references remain, the artifact is moved to trash and nil is returned.
+	// If references remain, only the metadata is updated and the updated metadata is returned.
+	Delete(ctx context.Context, hash string, ref ArtifactReference) (*ArtifactMeta, error)
 
 	// Meta operations
 	GetMeta(ctx context.Context, hash string) (*ArtifactMeta, error)
