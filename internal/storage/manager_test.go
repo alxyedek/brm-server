@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"brm/pkg/models"
 )
@@ -92,5 +93,37 @@ func TestStorageManagerRegisterFactory(t *testing.T) {
 	}
 	if storage == nil {
 		t.Error("Expected non-nil storage instance")
+	}
+}
+
+func TestStorageManagerConcurrentFileStorage(t *testing.T) {
+	manager := GetManager()
+	baseDir := t.TempDir()
+	lockDir := t.TempDir()
+	lockTimeout := 30 * time.Second
+
+	// Create concurrent file storage via manager
+	storage, err := manager.Create("concurrent.filestorage", "concurrent-test", baseDir, lockDir, lockTimeout)
+	if err != nil {
+		t.Fatalf("Failed to create concurrent storage: %v", err)
+	}
+	if storage == nil {
+		t.Fatal("Expected non-nil storage instance")
+	}
+
+	// Verify it's actually a ConcurrentArtifactStorage by testing it works
+	ctx := context.Background()
+	hash := "test123"
+	testData := []byte("test data")
+
+	meta, err := storage.Create(ctx, hash, bytes.NewReader(testData), int64(len(testData)), nil)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if meta == nil {
+		t.Fatal("Create returned nil metadata")
+	}
+	if meta.Hash != hash {
+		t.Errorf("Expected hash %s, got %s", hash, meta.Hash)
 	}
 }

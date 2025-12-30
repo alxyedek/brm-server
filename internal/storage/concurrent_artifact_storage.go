@@ -1,0 +1,158 @@
+package storage
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
+	"brm/pkg/models"
+
+	"github.com/gofrs/flock"
+)
+
+// ConcurrentArtifactStorage wraps an ArtifactStorage implementation with file-based locking
+// to ensure thread-safe and process-safe concurrent operations.
+type ConcurrentArtifactStorage struct {
+	storage     models.ArtifactStorage // Wrapped storage implementation
+	lockDir     string                 // Directory for lock files
+	lockTimeout time.Duration          // Timeout for lock acquisition
+}
+
+// NewConcurrentArtifactStorage creates a new ConcurrentArtifactStorage wrapper.
+// Parameters:
+//   - storage: The underlying ArtifactStorage implementation to wrap
+//   - lockDir: Directory path where lock files will be stored
+//   - lockTimeout: Maximum duration to wait for lock acquisition
+func NewConcurrentArtifactStorage(
+	storage models.ArtifactStorage,
+	lockDir string,
+	lockTimeout time.Duration,
+) (*ConcurrentArtifactStorage, error) {
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
+	}
+	if lockDir == "" {
+		return nil, fmt.Errorf("lockDir cannot be empty")
+	}
+	if lockTimeout <= 0 {
+		return nil, fmt.Errorf("lockTimeout must be positive")
+	}
+
+	// Ensure lock directory exists
+	if err := os.MkdirAll(lockDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create lock directory: %w", err)
+	}
+
+	return &ConcurrentArtifactStorage{
+		storage:     storage,
+		lockDir:     lockDir,
+		lockTimeout: lockTimeout,
+	}, nil
+}
+
+// GetLockPath returns the lock file path for a given hash using git-like structure.
+// Exported for testing purposes.
+func (c *ConcurrentArtifactStorage) GetLockPath(hash string) string {
+	if len(hash) < 2 {
+		return filepath.Join(c.lockDir, hash+".lock")
+	}
+	subDir := hash[:2]
+	fileName := hash[2:] + ".lock"
+	return filepath.Join(c.lockDir, subDir, fileName)
+}
+
+// acquireLock acquires a file lock for the given hash with timeout support.
+// It respects the context deadline if set, otherwise uses the configured lockTimeout.
+func (c *ConcurrentArtifactStorage) acquireLock(ctx context.Context, hash string) (*flock.Flock, error) {
+	// Build lock file path using git-like structure
+	lockPath := c.GetLockPath(hash)
+
+	// Ensure lock directory exists
+	lockDir := filepath.Dir(lockPath)
+	if err := os.MkdirAll(lockDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create lock directory: %w", err)
+	}
+
+	// Create flock instance
+	fileLock := flock.New(lockPath)
+
+	// Use context with timeout (respects caller context, adds default if needed)
+	lockCtx := ctx
+	if _, hasTimeout := ctx.Deadline(); !hasTimeout {
+		var cancel context.CancelFunc
+		lockCtx, cancel = context.WithTimeout(ctx, c.lockTimeout)
+		defer cancel()
+	}
+
+	// Acquire lock with retry (retry every 10ms)
+	retryDelay := 10 * time.Millisecond
+	locked, err := fileLock.TryLockContext(lockCtx, retryDelay)
+	if err != nil {
+		if err == context.DeadlineExceeded || err == context.Canceled {
+			return nil, fmt.Errorf("lock acquisition timeout for hash %s after %v", hash, c.lockTimeout)
+		}
+		return nil, fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	if !locked {
+		return nil, fmt.Errorf("lock acquisition timeout for hash %s after %v", hash, c.lockTimeout)
+	}
+
+	return fileLock, nil
+}
+
+// Create streams data from 'r' to storage with locking.
+// Returns the final metadata state (merged if artifact existed, new if created).
+func (c *ConcurrentArtifactStorage) Create(ctx context.Context, hash string, r io.Reader, size int64, meta *models.ArtifactMeta) (*models.ArtifactMeta, error) {
+	fileLock, err := c.acquireLock(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	defer fileLock.Unlock()
+
+	return c.storage.Create(ctx, hash, r, size, meta)
+}
+
+// Read returns a stream for the requested data.
+// Read operations don't require locking as they're read-only.
+func (c *ConcurrentArtifactStorage) Read(ctx context.Context, req models.ArtifactRange) (io.ReadCloser, models.ArtifactRange, error) {
+	return c.storage.Read(ctx, req)
+}
+
+// Update modifies a specific range by streaming data from 'r'.
+// Update operations don't require locking as they modify data, not metadata structure.
+func (c *ConcurrentArtifactStorage) Update(ctx context.Context, req models.ArtifactRange, r io.Reader) error {
+	return c.storage.Update(ctx, req, r)
+}
+
+// Delete removes a specific reference to an artifact with locking.
+// If no references remain, the artifact is moved to trash and nil is returned.
+// If references remain, only the metadata is updated and the updated metadata is returned.
+func (c *ConcurrentArtifactStorage) Delete(ctx context.Context, hash string, ref models.ArtifactReference) (*models.ArtifactMeta, error) {
+	fileLock, err := c.acquireLock(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	defer fileLock.Unlock()
+
+	return c.storage.Delete(ctx, hash, ref)
+}
+
+// GetMeta reads the metadata JSON file.
+// Read operations don't require locking as they're read-only.
+func (c *ConcurrentArtifactStorage) GetMeta(ctx context.Context, hash string) (*models.ArtifactMeta, error) {
+	return c.storage.GetMeta(ctx, hash)
+}
+
+// UpdateMeta overwrites the metadata JSON file with locking.
+func (c *ConcurrentArtifactStorage) UpdateMeta(ctx context.Context, meta models.ArtifactMeta) (*models.ArtifactMeta, error) {
+	fileLock, err := c.acquireLock(ctx, meta.Hash)
+	if err != nil {
+		return nil, err
+	}
+	defer fileLock.Unlock()
+
+	return c.storage.UpdateMeta(ctx, meta)
+}

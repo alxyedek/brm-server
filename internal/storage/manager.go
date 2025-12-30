@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sync"
+	"time"
 
 	"brm/pkg/models"
 )
@@ -45,6 +46,38 @@ func (sm *StorageManager) init() {
 			return nil, fmt.Errorf("filestorage basePath must be a string")
 		}
 		return NewSimpleFileStorage(basePath)
+	})
+
+	// Register ConcurrentArtifactStorage factory
+	// Parameters: [baseDir, lockDir, lockTimeout]
+	sm.RegisterFactory("concurrent.filestorage", func(params ...interface{}) (models.ArtifactStorage, error) {
+		if len(params) < 3 {
+			return nil, fmt.Errorf("concurrent.filestorage requires baseDir, lockDir, and lockTimeout parameters")
+		}
+
+		baseDir, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("concurrent.filestorage baseDir must be a string")
+		}
+
+		lockDir, ok := params[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("concurrent.filestorage lockDir must be a string")
+		}
+
+		lockTimeout, ok := params[2].(time.Duration)
+		if !ok {
+			return nil, fmt.Errorf("concurrent.filestorage lockTimeout must be a time.Duration")
+		}
+
+		// Create underlying SimpleFileStorage
+		storage, err := NewSimpleFileStorage(baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create underlying storage: %w", err)
+		}
+
+		// Wrap with ConcurrentArtifactStorage
+		return NewConcurrentArtifactStorage(storage, lockDir, lockTimeout)
 	})
 }
 
