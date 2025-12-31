@@ -156,3 +156,22 @@ func (c *ConcurrentArtifactStorage) UpdateMeta(ctx context.Context, meta models.
 
 	return c.storage.UpdateMeta(ctx, meta)
 }
+
+// Move renames an artifact and its metadata to a new hash location with locking.
+// Locks the destination hash to prevent concurrent operations.
+func (c *ConcurrentArtifactStorage) Move(ctx context.Context, srcHash, destHash string) error {
+	// Lock the destination hash (where we're moving to)
+	fileLock, err := c.acquireLock(ctx, destHash)
+	if err != nil {
+		return err
+	}
+	defer fileLock.Unlock()
+
+	// Delegate to underlying storage (which must implement MoveStorage)
+	moveStorage, ok := c.storage.(MoveStorage)
+	if !ok {
+		return fmt.Errorf("underlying storage does not implement Move method")
+	}
+
+	return moveStorage.Move(ctx, srcHash, destHash)
+}

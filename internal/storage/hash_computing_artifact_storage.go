@@ -15,6 +15,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// MoveStorage is an interface for storage backends that support moving artifacts.
+// All ArtifactStorage implementations are required to implement this.
+type MoveStorage interface {
+	Move(ctx context.Context, srcHash, destHash string) error
+}
+
 // HashComputingArtifactStorage wraps an ArtifactStorage implementation to automatically
 // compute SHA-256 hashes when the hash is unknown (empty, length<3, or "UNKNOWN").
 type HashComputingArtifactStorage struct {
@@ -33,17 +39,12 @@ func NewHashComputingArtifactStorage(storage models.ArtifactStorage) *HashComput
 
 // isUnknownHash checks if the hash should be treated as unknown.
 // Returns true if hash is empty, length < 3, or equals "UNKNOWN" (case-insensitive).
+// Note: empty hash already satisfies length < 3, so we check it first.
 func (h *HashComputingArtifactStorage) isUnknownHash(hash string) bool {
-	if hash == "" {
-		return true
-	}
 	if len(hash) < 3 {
 		return true
 	}
-	if strings.EqualFold(hash, "UNKNOWN") {
-		return true
-	}
-	return false
+	return strings.EqualFold(hash, "UNKNOWN")
 }
 
 // generateTempHash generates a temporary UUID-based hash for initial storage.
@@ -84,6 +85,84 @@ func (h *HashComputingArtifactStorage) cleanupTempHash(ctx context.Context, temp
 	return err
 }
 
+// handleExistingHash handles the case where the computed hash already exists.
+// It cleans up the temp file and merges references if provided.
+func (h *HashComputingArtifactStorage) handleExistingHash(
+	ctx context.Context,
+	computedHash string,
+	tempHash string,
+	tempMeta *models.ArtifactMeta,
+	meta *models.ArtifactMeta,
+) (*models.ArtifactMeta, error) {
+	// Cleanup temp file
+	if cleanupErr := h.cleanupTempHash(ctx, tempHash); cleanupErr != nil {
+		// Log cleanup error but continue with merge
+		// The temp file will be cleaned up later or remain in trash
+	}
+
+	// Get existing metadata
+	existingMeta, err := h.storage.GetMeta(ctx, computedHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing metadata: %w", err)
+	}
+
+	// Merge references if provided (follow normal Create behavior for existing artifacts)
+	if meta != nil && len(meta.References) > 0 {
+		mergeSize := existingMeta.Length
+		if tempMeta != nil {
+			mergeSize = tempMeta.Length
+		}
+		return h.storage.Create(ctx, computedHash, bytes.NewReader(nil), mergeSize, meta)
+	}
+
+	return existingMeta, nil
+}
+
+// moveToFinalHash moves the artifact from temp hash to final computed hash.
+// If the move fails because the hash already exists (race condition), it handles it gracefully.
+func (h *HashComputingArtifactStorage) moveToFinalHash(
+	ctx context.Context,
+	tempHash string,
+	computedHash string,
+	tempMeta *models.ArtifactMeta,
+	meta *models.ArtifactMeta,
+) (*models.ArtifactMeta, error) {
+	// All ArtifactStorage implementations must support Move
+	moveStorage, ok := h.storage.(MoveStorage)
+	if !ok {
+		return nil, fmt.Errorf("storage does not implement Move method")
+	}
+
+	// Attempt to move from temp to final location
+	if err := moveStorage.Move(ctx, tempHash, computedHash); err != nil {
+		// Move failed - check if hash now exists (another goroutine might have created it)
+		existingMeta, checkErr := h.storage.GetMeta(ctx, computedHash)
+		if checkErr == nil && existingMeta != nil {
+			// Hash exists now (race condition: another goroutine created it)
+			// Handle it as existing hash
+			return h.handleExistingHash(ctx, computedHash, tempHash, tempMeta, meta)
+		}
+		// Move failed for other reason, cleanup and return error
+		h.cleanupTempHash(ctx, tempHash)
+		return nil, fmt.Errorf("failed to move from temp to final hash: %w", err)
+	}
+
+	// Update metadata with computed hash
+	if tempMeta != nil {
+		tempMeta.Hash = computedHash
+		updatedMeta, err := h.storage.UpdateMeta(ctx, *tempMeta)
+		if err != nil {
+			// Metadata update failed, but file is already moved
+			// Try to get the metadata
+			return h.storage.GetMeta(ctx, computedHash)
+		}
+		return updatedMeta, nil
+	}
+
+	// Get final metadata
+	return h.storage.GetMeta(ctx, computedHash)
+}
+
 // Create streams data from 'r' to storage.
 // If hash is unknown (empty, len<3, or "UNKNOWN"), computes SHA-256 hash automatically.
 func (h *HashComputingArtifactStorage) Create(ctx context.Context, hash string, r io.Reader, size int64, meta *models.ArtifactMeta) (*models.ArtifactMeta, error) {
@@ -111,133 +190,15 @@ func (h *HashComputingArtifactStorage) Create(ctx context.Context, hash string, 
 	// Compute final hash from hasher
 	computedHash := hex.EncodeToString(hasher.Sum(nil))
 
-	// Check if computed hash already exists (with retry for race conditions)
-	var existingMeta *models.ArtifactMeta
-	for attempt := 0; attempt < 3; attempt++ {
-		var err error
-		existingMeta, err = h.storage.GetMeta(ctx, computedHash)
-		if err == nil && existingMeta != nil {
-			// Hash already exists: cleanup temp file and merge references
-			if cleanupErr := h.cleanupTempHash(ctx, tempHash); cleanupErr != nil {
-				// Log cleanup error but continue with merge
-				// The temp file will be cleaned up later or remain in trash
-			}
-
-			// Merge references if provided (follow normal Create behavior for existing artifacts)
-			// Use tempMeta.Length (actual size we just wrote) for validation
-			if meta != nil && len(meta.References) > 0 {
-				mergeSize := existingMeta.Length
-				if tempMeta != nil {
-					mergeSize = tempMeta.Length
-				}
-				return h.storage.Create(ctx, computedHash, bytes.NewReader(nil), mergeSize, meta)
-			}
-			return existingMeta, nil
-		}
-		// Small delay before retry (for race conditions)
-		if attempt < 2 {
-			time.Sleep(10 * time.Millisecond)
-		}
+	// Check if computed hash already exists
+	existingMeta, err := h.storage.GetMeta(ctx, computedHash)
+	if err == nil && existingMeta != nil {
+		// Hash already exists: cleanup temp file and merge references
+		return h.handleExistingHash(ctx, computedHash, tempHash, tempMeta, meta)
 	}
 
 	// Hash doesn't exist: move from temp to final location
-	// First, check if underlying storage supports Move
-	if moveStorage, ok := h.storage.(interface {
-		Move(ctx context.Context, srcHash, destHash string) error
-	}); ok {
-		if err := moveStorage.Move(ctx, tempHash, computedHash); err != nil {
-			// Move failed - check if hash now exists (another goroutine might have created it)
-			// Retry check a few times to handle race conditions
-			var checkMeta *models.ArtifactMeta
-			for retry := 0; retry < 3; retry++ {
-				var checkErr error
-				checkMeta, checkErr = h.storage.GetMeta(ctx, computedHash)
-				if checkErr == nil && checkMeta != nil {
-					// Hash exists now (race condition: another goroutine created it)
-					// Cleanup temp and merge references
-					h.cleanupTempHash(ctx, tempHash)
-					if meta != nil && len(meta.References) > 0 {
-						mergeSize := checkMeta.Length
-						if tempMeta != nil {
-							mergeSize = tempMeta.Length
-						}
-						return h.storage.Create(ctx, computedHash, bytes.NewReader(nil), mergeSize, meta)
-					}
-					return checkMeta, nil
-				}
-				if retry < 2 {
-					time.Sleep(10 * time.Millisecond)
-				}
-			}
-			// Move failed for other reason, cleanup and return error
-			h.cleanupTempHash(ctx, tempHash)
-			return nil, fmt.Errorf("failed to move from temp to final hash: %w", err)
-		}
-
-		// Update metadata with computed hash
-		if tempMeta != nil {
-			tempMeta.Hash = computedHash
-			updatedMeta, err := h.storage.UpdateMeta(ctx, *tempMeta)
-			if err != nil {
-				// Metadata update failed, but file is already moved
-				// Try to get the metadata
-				return h.storage.GetMeta(ctx, computedHash)
-			}
-			return updatedMeta, nil
-		}
-
-		// Get final metadata
-		return h.storage.GetMeta(ctx, computedHash)
-	}
-
-	// Storage doesn't support Move - need alternative approach
-	// Read from temp, write to final location, then cleanup
-	// This is less efficient but works for any storage backend
-	readReq := models.ArtifactRange{
-		Hash: tempHash,
-		Range: models.ByteRange{
-			Offset: 0,
-			Length: -1,
-		},
-	}
-	rc, actualRange, err := h.storage.Read(ctx, readReq)
-	if err != nil {
-		h.cleanupTempHash(ctx, tempHash)
-		return nil, fmt.Errorf("failed to read temp artifact: %w", err)
-	}
-	defer rc.Close()
-
-	// Create with computed hash (Create will handle existing hash case)
-	finalMeta, err := h.storage.Create(ctx, computedHash, rc, actualRange.Range.Length, meta)
-	rc.Close() // Close early
-
-	if err != nil {
-		// Check if hash now exists (another goroutine might have created it)
-		existingMeta, checkErr := h.storage.GetMeta(ctx, computedHash)
-		if checkErr == nil && existingMeta != nil {
-			// Hash exists now - cleanup temp and return existing
-			h.cleanupTempHash(ctx, tempHash)
-			if meta != nil && len(meta.References) > 0 {
-				// Merge references
-				mergeSize := existingMeta.Length
-				if tempMeta != nil {
-					mergeSize = tempMeta.Length
-				}
-				return h.storage.Create(ctx, computedHash, bytes.NewReader(nil), mergeSize, meta)
-			}
-			return existingMeta, nil
-		}
-		// Real error
-		h.cleanupTempHash(ctx, tempHash)
-		return nil, fmt.Errorf("failed to create with computed hash: %w", err)
-	}
-
-	// Cleanup temp file
-	if cleanupErr := h.cleanupTempHash(ctx, tempHash); cleanupErr != nil {
-		// Log but don't fail - temp file will be cleaned up later
-	}
-
-	return finalMeta, nil
+	return h.moveToFinalHash(ctx, tempHash, computedHash, tempMeta, meta)
 }
 
 // Read returns a stream for the requested data.

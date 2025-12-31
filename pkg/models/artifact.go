@@ -62,23 +62,33 @@ type ArtifactStorage interface {
 	// The 'meta' parameter is optional (can be nil). If provided, metadata is stored atomically with the data.
 	// Returns the final metadata state (merged if artifact existed, new if created).
 	// If artifact exists, validates length match and merges references without writing data.
+	// Implementations are definitely expected to suport this method.
+	// Implementations should handle their thread-safety internally, if they are declared as thread-safe.
 	Create(ctx context.Context, hash string, r io.Reader, size int64, meta *ArtifactMeta) (*ArtifactMeta, error)
 
 	// Read returns a stream (rc) for the requested data.
 	// It returns 'actual' containing the actual range being returned (calculated).
 	// This is useful if the requested Length was -1 or exceeded the file size.
 	// IMPORTANT: The caller MUST close rc.
+	// Implementations are definitely expected to suport this method.
 	Read(ctx context.Context, req ArtifactRange) (rc io.ReadCloser, actual ArtifactRange, err error)
 
 	// Update modifies a specific range by streaming data from 'r'.
+	// Implementations may omit this method, if they are read-only.
 	Update(ctx context.Context, req ArtifactRange, r io.Reader) error
 
 	// Delete removes a specific reference to an artifact.
 	// If no references remain, the artifact is moved to trash and nil is returned.
 	// If references remain, only the metadata is updated and the updated metadata is returned.
+	// Implementations are definitely expected to suport this method.
+	// Implementations should handle their thread-safety internally, if they are declared as thread-safe. Must be blocked if a Create operation is in progress.
 	Delete(ctx context.Context, hash string, ref ArtifactReference) (*ArtifactMeta, error)
 
 	// Meta operations
+	// Implementations are definitely expected to suport this method.
 	GetMeta(ctx context.Context, hash string) (*ArtifactMeta, error)
+
+	// Implementations are definitely expected to suport this method.
+	// Implementations should handle their thread-safety internally, if they are declared as thread-safe.
 	UpdateMeta(ctx context.Context, meta ArtifactMeta) (*ArtifactMeta, error)
 }
