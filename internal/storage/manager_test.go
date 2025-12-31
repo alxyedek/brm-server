@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -125,5 +126,63 @@ func TestStorageManagerConcurrentFileStorage(t *testing.T) {
 	}
 	if meta.Hash != hash {
 		t.Errorf("Expected hash %s, got %s", hash, meta.Hash)
+	}
+}
+
+func TestStorageManagerHashComputingFileStorage(t *testing.T) {
+	manager := GetManager()
+	baseDir := t.TempDir()
+
+	// Create hash computing file storage via manager (simple version)
+	storage, err := manager.Create("hashcomputing.filestorage", "hashcomputing-test", baseDir)
+	if err != nil {
+		t.Fatalf("Failed to create hash computing storage: %v", err)
+	}
+	if storage == nil {
+		t.Fatal("Expected non-nil storage instance")
+	}
+
+	// Verify it computes hashes automatically
+	ctx := context.Background()
+	testData := []byte("test data")
+
+	// Create with unknown hash (empty string)
+	meta, err := storage.Create(ctx, "", bytes.NewReader(testData), int64(len(testData)), nil)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if meta == nil {
+		t.Fatal("Create returned nil metadata")
+	}
+
+	// Verify hash was computed (should be SHA-256, not empty)
+	if meta.Hash == "" {
+		t.Error("Expected computed hash, got empty string")
+	}
+	if len(meta.Hash) < 3 {
+		t.Errorf("Expected hash length >= 3, got %d", len(meta.Hash))
+	}
+
+	// Verify we can read back using computed hash
+	readReq := models.ArtifactRange{
+		Hash: meta.Hash,
+		Range: models.ByteRange{
+			Offset: 0,
+			Length: -1,
+		},
+	}
+	rc, _, err := storage.Read(ctx, readReq)
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	defer rc.Close()
+
+	readData, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("Failed to read data: %v", err)
+	}
+
+	if !bytes.Equal(readData, testData) {
+		t.Errorf("Data mismatch: expected %v, got %v", testData, readData)
 	}
 }

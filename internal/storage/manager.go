@@ -79,6 +79,58 @@ func (sm *StorageManager) init() {
 		// Wrap with ConcurrentArtifactStorage
 		return NewConcurrentArtifactStorage(storage, lockDir, lockTimeout)
 	})
+
+	// Register HashComputingArtifactStorage factory
+	// Parameters: [baseDir] or [baseDir, lockDir, lockTimeout]
+	// If 1 parameter: wraps SimpleFileStorage
+	// If 3 parameters: wraps ConcurrentArtifactStorage
+	sm.RegisterFactory("hashcomputing.filestorage", func(params ...interface{}) (models.ArtifactStorage, error) {
+		if len(params) == 0 {
+			return nil, fmt.Errorf("hashcomputing.filestorage requires at least baseDir parameter")
+		}
+
+		baseDir, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("hashcomputing.filestorage baseDir must be a string")
+		}
+
+		var underlyingStorage models.ArtifactStorage
+		var err error
+
+		if len(params) == 1 {
+			// Simple file storage only
+			underlyingStorage, err = NewSimpleFileStorage(baseDir)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create underlying storage: %w", err)
+			}
+		} else if len(params) == 3 {
+			// Concurrent file storage with locking
+			lockDir, ok := params[1].(string)
+			if !ok {
+				return nil, fmt.Errorf("hashcomputing.filestorage lockDir must be a string")
+			}
+
+			lockTimeout, ok := params[2].(time.Duration)
+			if !ok {
+				return nil, fmt.Errorf("hashcomputing.filestorage lockTimeout must be a time.Duration")
+			}
+
+			simpleStorage, err := NewSimpleFileStorage(baseDir)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create underlying storage: %w", err)
+			}
+
+			underlyingStorage, err = NewConcurrentArtifactStorage(simpleStorage, lockDir, lockTimeout)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create concurrent storage: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("hashcomputing.filestorage requires 1 parameter (baseDir) or 3 parameters (baseDir, lockDir, lockTimeout)")
+		}
+
+		// Wrap with HashComputingArtifactStorage
+		return NewHashComputingArtifactStorage(underlyingStorage), nil
+	})
 }
 
 // isValidDNSName validates that a string is a valid DNS name
