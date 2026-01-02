@@ -16,11 +16,12 @@ const (
 
 // Registry is the base interface for all registry types.
 type Registry interface {
-	// Alias returns the DNS-compatible alias/name of the registry.
-	Alias() string
-
-	// Type returns the type of the registry.
+	// Type returns the registry type (private, proxy, or compound).
 	Type() RegistryType
+
+	// ImplementationType returns the implementation type/class name of the registry (e.g., "docker.registry", "raw.registry").
+	// This is used by managers to identify the registry implementation type.
+	ImplementationType() string
 }
 
 // UpstreamRegistry represents the configuration for an upstream registry used by proxy registries.
@@ -55,8 +56,8 @@ type PrivateRegistry struct {
 	// registryType is always RegistryTypePrivate for private registries.
 	registryType RegistryType `json:"type"`
 
-	// registryAlias is the DNS-compatible name/alias of the registry.
-	registryAlias string `json:"alias"`
+	// implementationType is the implementation class name (e.g., "docker.registry", "raw.registry").
+	implementationType string `json:"implementationType"`
 
 	// StorageAlias is the alias/name of the storage backend registered in StorageManager.
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
@@ -66,14 +67,14 @@ type PrivateRegistry struct {
 	Config *PrivateRegistryConfig `json:"config,omitempty"`
 }
 
-// Alias returns the DNS-compatible alias of the registry.
-func (p *PrivateRegistry) Alias() string {
-	return p.registryAlias
-}
-
 // Type returns the registry type.
 func (p *PrivateRegistry) Type() RegistryType {
 	return p.registryType
+}
+
+// ImplementationType returns the implementation type/class name.
+func (p *PrivateRegistry) ImplementationType() string {
+	return p.implementationType
 }
 
 // ProxyRegistryConfig holds configuration for a proxy registry.
@@ -89,8 +90,8 @@ type ProxyRegistry struct {
 	// registryType is always RegistryTypeProxy for proxy registries.
 	registryType RegistryType `json:"type"`
 
-	// registryAlias is the DNS-compatible name/alias of the registry.
-	registryAlias string `json:"alias"`
+	// implementationType is the implementation class name (e.g., "docker.registry", "raw.registry").
+	implementationType string `json:"implementationType"`
 
 	// StorageAlias is the alias/name of the cache storage backend registered in StorageManager.
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
@@ -103,14 +104,14 @@ type ProxyRegistry struct {
 	Config *ProxyRegistryConfig `json:"config,omitempty"`
 }
 
-// Alias returns the DNS-compatible alias of the registry.
-func (p *ProxyRegistry) Alias() string {
-	return p.registryAlias
-}
-
 // Type returns the registry type.
 func (p *ProxyRegistry) Type() RegistryType {
 	return p.registryType
+}
+
+// ImplementationType returns the implementation type/class name.
+func (p *ProxyRegistry) ImplementationType() string {
+	return p.implementationType
 }
 
 // CompoundRegistryConfig holds configuration for a compound registry.
@@ -127,8 +128,8 @@ type CompoundRegistry struct {
 	// registryType is always RegistryTypeCompound for compound registries.
 	registryType RegistryType `json:"type"`
 
-	// registryAlias is the DNS-compatible name/alias of the registry.
-	registryAlias string `json:"alias"`
+	// implementationType is the implementation class name (e.g., "docker.registry", "raw.registry").
+	implementationType string `json:"implementationType"`
 
 	// PrivateStorageAlias is the alias/name of the private storage backend registered in StorageManager.
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
@@ -142,12 +143,12 @@ type CompoundRegistry struct {
 	Config *CompoundRegistryConfig `json:"config,omitempty"`
 }
 
-// Alias returns the DNS-compatible alias of the registry.
-func (c *CompoundRegistry) Alias() string {
-	return c.registryAlias
-}
-
 // Type returns the registry type.
 func (c *CompoundRegistry) Type() RegistryType {
 	return c.registryType
+}
+
+// ImplementationType returns the implementation type/class name.
+func (c *CompoundRegistry) ImplementationType() string {
+	return c.implementationType
 }
