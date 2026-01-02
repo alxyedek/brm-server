@@ -58,8 +58,9 @@ type PrivateRegistry struct {
 	// registryAlias is the DNS-compatible name/alias of the registry.
 	registryAlias string `json:"alias"`
 
-	// Storage is the local storage backend for artifacts.
-	Storage ArtifactStorage `json:"-"` // Omit from JSON to avoid serialization issues
+	// StorageAlias is the alias/name of the storage backend registered in StorageManager.
+	// The actual ArtifactStorage instance is resolved by looking up this alias.
+	StorageAlias string `json:"storageAlias"`
 
 	// Config holds additional configuration for the private registry.
 	Config *PrivateRegistryConfig `json:"config,omitempty"`
@@ -91,8 +92,9 @@ type ProxyRegistry struct {
 	// registryAlias is the DNS-compatible name/alias of the registry.
 	registryAlias string `json:"alias"`
 
-	// Storage is the local cache storage for artifacts pulled from upstream.
-	Storage ArtifactStorage `json:"-"` // Omit from JSON to avoid serialization issues
+	// StorageAlias is the alias/name of the cache storage backend registered in StorageManager.
+	// The actual ArtifactStorage instance is resolved by looking up this alias.
+	StorageAlias string `json:"storageAlias"`
 
 	// Upstream is the upstream registry configuration.
 	Upstream *UpstreamRegistry `json:"upstream"`
@@ -128,8 +130,9 @@ type CompoundRegistry struct {
 	// registryAlias is the DNS-compatible name/alias of the registry.
 	registryAlias string `json:"alias"`
 
-	// Private is the local private storage for writes and local artifacts.
-	Private ArtifactStorage `json:"-"` // Omit from JSON to avoid serialization issues
+	// PrivateStorageAlias is the alias/name of the private storage backend registered in StorageManager.
+	// The actual ArtifactStorage instance is resolved by looking up this alias.
+	PrivateStorageAlias string `json:"privateStorageAlias"`
 
 	// Proxies is an ordered list of proxy registries to check when artifacts are not found locally.
 	// The order matters: artifacts are checked from proxies in the order they appear in this slice.
