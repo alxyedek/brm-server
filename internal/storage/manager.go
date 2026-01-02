@@ -198,3 +198,16 @@ func (sm *StorageManager) Create(className, alias string, params ...interface{})
 
 	return storage, nil
 }
+
+// Get retrieves a storage instance by alias
+func (sm *StorageManager) Get(alias string) (models.ArtifactStorage, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	storage, exists := sm.storages[alias]
+	if !exists {
+		return nil, fmt.Errorf("storage alias not found: %s", alias)
+	}
+
+	return storage, nil
+}

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sync"
 
+	"brm/internal/registry/docker"
 	"brm/pkg/models"
 )
 
@@ -35,7 +36,33 @@ func GetManager() *RegistryManager {
 
 // init registers built-in registry factory functions
 func (rm *RegistryManager) init() {
-	// Empty for now - will be populated when registry implementations are added
+	// Register Docker registry factory
+	// Parameters: [storageAlias string, upstream *models.UpstreamRegistry, config *models.ProxyRegistryConfig]
+	rm.RegisterFactory("docker.registry", func(params ...interface{}) (models.Registry, error) {
+		if len(params) < 2 {
+			return nil, fmt.Errorf("docker.registry requires at least storageAlias and upstream parameters")
+		}
+
+		storageAlias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("docker.registry storageAlias must be a string")
+		}
+
+		upstream, ok := params[1].(*models.UpstreamRegistry)
+		if !ok {
+			return nil, fmt.Errorf("docker.registry upstream must be *models.UpstreamRegistry")
+		}
+
+		var config *models.ProxyRegistryConfig
+		if len(params) >= 3 {
+			config, ok = params[2].(*models.ProxyRegistryConfig)
+			if !ok {
+				return nil, fmt.Errorf("docker.registry config must be *models.ProxyRegistryConfig")
+			}
+		}
+
+		return docker.NewDockerRegistry(storageAlias, upstream, config)
+	})
 }
 
 // isValidDNSName validates that a string is a valid DNS name
