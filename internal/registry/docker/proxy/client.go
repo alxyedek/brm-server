@@ -1,4 +1,4 @@
-package docker
+package proxy
 
 import (
 	"context"
@@ -10,17 +10,17 @@ import (
 	"brm/pkg/models"
 )
 
-// DockerRegistryClient handles HTTP communication with upstream Docker registries
-type DockerRegistryClient struct {
+// DockerRegistryProxyClient handles HTTP communication with upstream Docker registries
+type DockerRegistryProxyClient struct {
 	baseURL    string
 	username   string
 	password   string
 	httpClient *http.Client
 }
 
-// NewDockerRegistryClient creates a new client for upstream registry communication
-func NewDockerRegistryClient(upstream *models.UpstreamRegistry) *DockerRegistryClient {
-	return &DockerRegistryClient{
+// NewDockerRegistryProxyClient creates a new client for upstream registry communication
+func NewDockerRegistryProxyClient(upstream *models.UpstreamRegistry) *DockerRegistryProxyClient {
+	return &DockerRegistryProxyClient{
 		baseURL:  upstream.URL,
 		username: upstream.Username,
 		password: upstream.Password,
@@ -31,7 +31,7 @@ func NewDockerRegistryClient(upstream *models.UpstreamRegistry) *DockerRegistryC
 }
 
 // makeRequest makes an HTTP request to the upstream registry with authentication
-func (c *DockerRegistryClient) makeRequest(ctx context.Context, method, path string, headers map[string]string) (*http.Response, error) {
+func (c *DockerRegistryProxyClient) makeRequest(ctx context.Context, method, path string, headers map[string]string) (*http.Response, error) {
 	url := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
@@ -62,7 +62,7 @@ func (c *DockerRegistryClient) makeRequest(ctx context.Context, method, path str
 }
 
 // GetManifest fetches a manifest from the upstream registry
-func (c *DockerRegistryClient) GetManifest(ctx context.Context, name, reference string) ([]byte, string, error) {
+func (c *DockerRegistryProxyClient) GetManifest(ctx context.Context, name, reference string) ([]byte, string, error) {
 	path := fmt.Sprintf("/v2/%s/manifests/%s", name, reference)
 	resp, err := c.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -85,7 +85,7 @@ func (c *DockerRegistryClient) GetManifest(ctx context.Context, name, reference 
 }
 
 // CheckManifestExists checks if a manifest exists in the upstream registry
-func (c *DockerRegistryClient) CheckManifestExists(ctx context.Context, name, reference string) (bool, string, error) {
+func (c *DockerRegistryProxyClient) CheckManifestExists(ctx context.Context, name, reference string) (bool, string, error) {
 	path := fmt.Sprintf("/v2/%s/manifests/%s", name, reference)
 	resp, err := c.makeRequest(ctx, http.MethodHead, path, nil)
 	if err != nil {
@@ -102,7 +102,7 @@ func (c *DockerRegistryClient) CheckManifestExists(ctx context.Context, name, re
 }
 
 // GetBlob fetches a blob from the upstream registry
-func (c *DockerRegistryClient) GetBlob(ctx context.Context, name, digest string) (io.ReadCloser, int64, error) {
+func (c *DockerRegistryProxyClient) GetBlob(ctx context.Context, name, digest string) (io.ReadCloser, int64, error) {
 	path := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
 	resp, err := c.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *DockerRegistryClient) GetBlob(ctx context.Context, name, digest string)
 }
 
 // CheckBlobExists checks if a blob exists in the upstream registry
-func (c *DockerRegistryClient) CheckBlobExists(ctx context.Context, name, digest string) (bool, int64, error) {
+func (c *DockerRegistryProxyClient) CheckBlobExists(ctx context.Context, name, digest string) (bool, int64, error) {
 	path := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
 	resp, err := c.makeRequest(ctx, http.MethodHead, path, nil)
 	if err != nil {

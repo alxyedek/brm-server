@@ -5,7 +5,8 @@ import (
 	"regexp"
 	"sync"
 
-	"brm/internal/registry/docker"
+	"brm/internal/registry/docker/private"
+	"brm/internal/registry/docker/proxy"
 	"brm/pkg/models"
 )
 
@@ -61,7 +62,30 @@ func (rm *RegistryManager) init() {
 			}
 		}
 
-		return docker.NewDockerRegistry(storageAlias, upstream, config)
+		return proxy.NewDockerRegistryProxy(storageAlias, upstream, config)
+	})
+
+	// Register Docker private registry factory
+	// Parameters: [storageAlias string, config *models.PrivateRegistryConfig]
+	rm.RegisterFactory("docker.registry.private", func(params ...interface{}) (models.Registry, error) {
+		if len(params) < 1 {
+			return nil, fmt.Errorf("docker.registry.private requires at least storageAlias parameter")
+		}
+
+		storageAlias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("docker.registry.private storageAlias must be a string")
+		}
+
+		var config *models.PrivateRegistryConfig
+		if len(params) >= 2 {
+			config, ok = params[1].(*models.PrivateRegistryConfig)
+			if !ok {
+				return nil, fmt.Errorf("docker.registry.private config must be *models.PrivateRegistryConfig")
+			}
+		}
+
+		return private.NewDockerRegistryPrivate(storageAlias, config)
 	})
 }
 

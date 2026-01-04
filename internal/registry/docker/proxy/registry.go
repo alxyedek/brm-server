@@ -1,4 +1,4 @@
-package docker
+package proxy
 
 import (
 	"fmt"
@@ -7,22 +7,22 @@ import (
 	"brm/pkg/models"
 )
 
-// DockerRegistry implements a Docker registry proxy that caches artifacts from upstream registries
-type DockerRegistry struct {
+// DockerRegistryProxy implements a Docker registry proxy that caches artifacts from upstream registries
+type DockerRegistryProxy struct {
 	registryType       models.RegistryType
 	implementationType string
 	storageAlias       string
 	upstream           *models.UpstreamRegistry
 	config             *models.ProxyRegistryConfig
-	service            *DockerRegistryService
+	service            *DockerRegistryProxyService
 }
 
-// NewDockerRegistry creates a new Docker registry proxy instance
-func NewDockerRegistry(
+// NewDockerRegistryProxy creates a new Docker registry proxy instance
+func NewDockerRegistryProxy(
 	storageAlias string,
 	upstream *models.UpstreamRegistry,
 	config *models.ProxyRegistryConfig,
-) (*DockerRegistry, error) {
+) (*DockerRegistryProxy, error) {
 	if storageAlias == "" {
 		return nil, fmt.Errorf("storageAlias cannot be empty")
 	}
@@ -41,7 +41,7 @@ func NewDockerRegistry(
 	}
 
 	// Create service
-	service, err := NewDockerRegistryService(storageAlias, upstream, config)
+	service, err := NewDockerRegistryProxyService(storageAlias, upstream, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create registry service: %w", err)
 	}
@@ -49,7 +49,7 @@ func NewDockerRegistry(
 	// Set storage in service
 	service.SetStorage(storageInstance)
 
-	registry := &DockerRegistry{
+	registry := &DockerRegistryProxy{
 		registryType:       models.RegistryTypeProxy,
 		implementationType: "docker.registry",
 		storageAlias:       storageAlias,
@@ -62,16 +62,16 @@ func NewDockerRegistry(
 }
 
 // Type returns the registry type
-func (d *DockerRegistry) Type() models.RegistryType {
+func (d *DockerRegistryProxy) Type() models.RegistryType {
 	return d.registryType
 }
 
 // ImplementationType returns the implementation type/class name
-func (d *DockerRegistry) ImplementationType() string {
+func (d *DockerRegistryProxy) ImplementationType() string {
 	return d.implementationType
 }
 
 // Service returns the Docker registry service instance
-func (d *DockerRegistry) Service() *DockerRegistryService {
+func (d *DockerRegistryProxy) Service() *DockerRegistryProxyService {
 	return d.service
 }

@@ -30,8 +30,10 @@ func (e *RegistryError) HTTPStatus() int {
 		return http.StatusForbidden
 	case "NAME_UNKNOWN", "BLOB_UNKNOWN", "MANIFEST_UNKNOWN":
 		return http.StatusNotFound
-	case "BLOB_UPLOAD_UNKNOWN", "BLOB_UPLOAD_INVALID":
+	case "BLOB_UPLOAD_UNKNOWN":
 		return http.StatusNotFound
+	case "BLOB_UPLOAD_INVALID", "MANIFEST_INVALID":
+		return http.StatusBadRequest
 	case "RANGE_INVALID":
 		return http.StatusRequestedRangeNotSatisfiable
 	case "UNSUPPORTED":
@@ -112,6 +114,33 @@ func ErrUnsupported(message string) *RegistryError {
 	return &RegistryError{
 		Code:    "UNSUPPORTED",
 		Message: "the operation is unsupported",
+		Detail:  message,
+	}
+}
+
+// ErrBlobUploadUnknown returns a BLOB_UPLOAD_UNKNOWN error (404)
+func ErrBlobUploadUnknown(message string) *RegistryError {
+	return &RegistryError{
+		Code:    "BLOB_UPLOAD_UNKNOWN",
+		Message: "blob upload unknown to registry",
+		Detail:  message,
+	}
+}
+
+// ErrBlobUploadInvalid returns a BLOB_UPLOAD_INVALID error (400)
+func ErrBlobUploadInvalid(message string) *RegistryError {
+	return &RegistryError{
+		Code:    "BLOB_UPLOAD_INVALID",
+		Message: "blob upload invalid",
+		Detail:  message,
+	}
+}
+
+// ErrManifestInvalid returns a MANIFEST_INVALID error (400)
+func ErrManifestInvalid(message string) *RegistryError {
+	return &RegistryError{
+		Code:    "MANIFEST_INVALID",
+		Message: "manifest invalid",
 		Detail:  message,
 	}
 }

@@ -1,4 +1,4 @@
-package docker
+package proxy
 
 import (
 	"fmt"
@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"brm/internal/registry/docker"
 )
 
 // SetupRoutes configures HTTP routes for Docker registry API endpoints
-func SetupRoutes(mux *http.ServeMux, service *DockerRegistryService) {
+func SetupRoutes(mux *http.ServeMux, service *DockerRegistryProxyService) {
 	// API version check
 	mux.HandleFunc("GET /v2/", func(w http.ResponseWriter, r *http.Request) {
 		handleAPIVersion(w, r)
@@ -35,7 +37,7 @@ func SetupRoutes(mux *http.ServeMux, service *DockerRegistryService) {
 // handleAPIVersion handles GET /v2/ - API version check
 func handleAPIVersion(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		WriteError(w, ErrUnsupported("method not allowed"))
+		docker.WriteError(w, docker.ErrUnsupported("method not allowed"))
 		return
 	}
 
@@ -44,21 +46,21 @@ func handleAPIVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetManifest handles GET /v2/{name}/manifests/{reference}
-func handleGetManifest(w http.ResponseWriter, r *http.Request, service *DockerRegistryService) {
+func handleGetManifest(w http.ResponseWriter, r *http.Request, service *DockerRegistryProxyService) {
 	if r.Method != http.MethodGet {
-		WriteError(w, ErrUnsupported("method not allowed"))
+		docker.WriteError(w, docker.ErrUnsupported("method not allowed"))
 		return
 	}
 
 	name, reference, err := parseManifestPath(r.URL.Path)
 	if err != nil {
-		WriteError(w, ErrNameUnknown(""))
+		docker.WriteError(w, docker.ErrNameUnknown(""))
 		return
 	}
 
 	manifestData, mediaType, err := service.GetManifest(r.Context(), name, reference)
 	if err != nil {
-		WriteError(w, ErrManifestUnknown(reference))
+		docker.WriteError(w, docker.ErrManifestUnknown(reference))
 		return
 	}
 
@@ -75,26 +77,26 @@ func handleGetManifest(w http.ResponseWriter, r *http.Request, service *DockerRe
 }
 
 // handleHeadManifest handles HEAD /v2/{name}/manifests/{reference}
-func handleHeadManifest(w http.ResponseWriter, r *http.Request, service *DockerRegistryService) {
+func handleHeadManifest(w http.ResponseWriter, r *http.Request, service *DockerRegistryProxyService) {
 	if r.Method != http.MethodHead {
-		WriteError(w, ErrUnsupported("method not allowed"))
+		docker.WriteError(w, docker.ErrUnsupported("method not allowed"))
 		return
 	}
 
 	name, reference, err := parseManifestPath(r.URL.Path)
 	if err != nil {
-		WriteError(w, ErrNameUnknown(""))
+		docker.WriteError(w, docker.ErrNameUnknown(""))
 		return
 	}
 
 	exists, digest, err := service.CheckManifestExists(r.Context(), name, reference)
 	if err != nil {
-		WriteError(w, ErrManifestUnknown(reference))
+		docker.WriteError(w, docker.ErrManifestUnknown(reference))
 		return
 	}
 
 	if !exists {
-		WriteError(w, ErrManifestUnknown(reference))
+		docker.WriteError(w, docker.ErrManifestUnknown(reference))
 		return
 	}
 
@@ -104,21 +106,21 @@ func handleHeadManifest(w http.ResponseWriter, r *http.Request, service *DockerR
 }
 
 // handleGetBlob handles GET /v2/{name}/blobs/{digest}
-func handleGetBlob(w http.ResponseWriter, r *http.Request, service *DockerRegistryService) {
+func handleGetBlob(w http.ResponseWriter, r *http.Request, service *DockerRegistryProxyService) {
 	if r.Method != http.MethodGet {
-		WriteError(w, ErrUnsupported("method not allowed"))
+		docker.WriteError(w, docker.ErrUnsupported("method not allowed"))
 		return
 	}
 
 	name, digest, err := parseBlobPath(r.URL.Path)
 	if err != nil {
-		WriteError(w, ErrNameUnknown(""))
+		docker.WriteError(w, docker.ErrNameUnknown(""))
 		return
 	}
 
 	blobReader, size, err := service.GetBlob(r.Context(), name, digest)
 	if err != nil {
-		WriteError(w, ErrBlobUnknown(digest))
+		docker.WriteError(w, docker.ErrBlobUnknown(digest))
 		return
 	}
 	defer blobReader.Close()
@@ -133,26 +135,26 @@ func handleGetBlob(w http.ResponseWriter, r *http.Request, service *DockerRegist
 }
 
 // handleHeadBlob handles HEAD /v2/{name}/blobs/{digest}
-func handleHeadBlob(w http.ResponseWriter, r *http.Request, service *DockerRegistryService) {
+func handleHeadBlob(w http.ResponseWriter, r *http.Request, service *DockerRegistryProxyService) {
 	if r.Method != http.MethodHead {
-		WriteError(w, ErrUnsupported("method not allowed"))
+		docker.WriteError(w, docker.ErrUnsupported("method not allowed"))
 		return
 	}
 
 	name, digest, err := parseBlobPath(r.URL.Path)
 	if err != nil {
-		WriteError(w, ErrNameUnknown(""))
+		docker.WriteError(w, docker.ErrNameUnknown(""))
 		return
 	}
 
 	exists, size, err := service.CheckBlobExists(r.Context(), name, digest)
 	if err != nil {
-		WriteError(w, ErrBlobUnknown(digest))
+		docker.WriteError(w, docker.ErrBlobUnknown(digest))
 		return
 	}
 
 	if !exists {
-		WriteError(w, ErrBlobUnknown(digest))
+		docker.WriteError(w, docker.ErrBlobUnknown(digest))
 		return
 	}
 

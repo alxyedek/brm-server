@@ -11,3 +11,5 @@
     [ ] distributed (sharded & replicated) storage (check S3 or similar)
     [ ] implements S3 or similar service on mulipart and distibuted storage completion.
     [ ] Consider limiting minimum hashlength of 3 characters, in low-level ArtifactStorage implementations.
+    [ ] DockerRegistryProxyClient is a generic client; can be refactor as one.
+     
