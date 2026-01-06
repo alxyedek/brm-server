@@ -53,6 +53,11 @@ func NewConcurrentArtifactStorage(
 	}, nil
 }
 
+// Alias returns the alias/name of the storage by delegating to the wrapped storage.
+func (c *ConcurrentArtifactStorage) Alias() string {
+	return c.storage.Alias()
+}
+
 // GetLockPath returns the lock file path for a given hash using git-like structure.
 // Exported for testing purposes.
 func (c *ConcurrentArtifactStorage) GetLockPath(hash string) string {

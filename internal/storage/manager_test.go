@@ -82,7 +82,7 @@ func TestStorageManagerRegisterFactory(t *testing.T) {
 		if !ok {
 			return nil, fmt.Errorf("test factory basePath must be a string")
 		}
-		return NewSimpleFileStorage(basePath)
+		return NewSimpleFileStorage("test-storage", basePath)
 	}
 
 	manager.RegisterFactory("test.factory", testFactory)

@@ -2,6 +2,7 @@ package private
 
 import (
 	"fmt"
+	"net"
 
 	"brm/internal/storage"
 	"brm/pkg/models"
@@ -9,17 +10,21 @@ import (
 
 // DockerRegistryPrivate implements a private Docker registry that stores artifacts locally
 type DockerRegistryPrivate struct {
+	models.BaseRegistry
 	registryType       models.RegistryType
 	implementationType string
 	storageAlias       string
-	config             *models.PrivateRegistryConfig
+	serviceBinding     net.Addr
+	description        string
 	service            *DockerRegistryPrivateService
 }
 
 // NewDockerRegistryPrivate creates a new private Docker registry instance
 func NewDockerRegistryPrivate(
+	alias string,
 	storageAlias string,
-	config *models.PrivateRegistryConfig,
+	serviceBinding net.Addr,
+	description string,
 ) (*DockerRegistryPrivate, error) {
 	if storageAlias == "" {
 		return nil, fmt.Errorf("storageAlias cannot be empty")
@@ -33,7 +38,7 @@ func NewDockerRegistryPrivate(
 	}
 
 	// Create service
-	service, err := NewDockerRegistryPrivateService(storageAlias, config)
+	service, err := NewDockerRegistryPrivateService(storageAlias, description)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create registry service: %w", err)
 	}
@@ -45,9 +50,11 @@ func NewDockerRegistryPrivate(
 		registryType:       models.RegistryTypePrivate,
 		implementationType: "docker.registry.private",
 		storageAlias:       storageAlias,
-		config:             config,
+		serviceBinding:     serviceBinding,
+		description:        description,
 		service:            service,
 	}
+	registry.BaseRegistry.SetAlias(alias)
 
 	return registry, nil
 }

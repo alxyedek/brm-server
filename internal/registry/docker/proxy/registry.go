@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"fmt"
+	"net"
 
 	"brm/internal/storage"
 	"brm/pkg/models"
@@ -9,19 +10,23 @@ import (
 
 // DockerRegistryProxy implements a Docker registry proxy that caches artifacts from upstream registries
 type DockerRegistryProxy struct {
+	models.BaseRegistry
 	registryType       models.RegistryType
 	implementationType string
 	storageAlias       string
 	upstream           *models.UpstreamRegistry
-	config             *models.ProxyRegistryConfig
+	serviceBinding     net.Addr
+	cacheTTL           int64
 	service            *DockerRegistryProxyService
 }
 
 // NewDockerRegistryProxy creates a new Docker registry proxy instance
 func NewDockerRegistryProxy(
+	alias string,
 	storageAlias string,
 	upstream *models.UpstreamRegistry,
-	config *models.ProxyRegistryConfig,
+	serviceBinding net.Addr,
+	cacheTTL int64,
 ) (*DockerRegistryProxy, error) {
 	if storageAlias == "" {
 		return nil, fmt.Errorf("storageAlias cannot be empty")
@@ -41,7 +46,7 @@ func NewDockerRegistryProxy(
 	}
 
 	// Create service
-	service, err := NewDockerRegistryProxyService(storageAlias, upstream, config)
+	service, err := NewDockerRegistryProxyService(storageAlias, upstream, cacheTTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create registry service: %w", err)
 	}
@@ -54,9 +59,11 @@ func NewDockerRegistryProxy(
 		implementationType: "docker.registry",
 		storageAlias:       storageAlias,
 		upstream:           upstream,
-		config:             config,
+		serviceBinding:     serviceBinding,
+		cacheTTL:           cacheTTL,
 		service:            service,
 	}
+	registry.BaseRegistry.SetAlias(alias)
 
 	return registry, nil
 }

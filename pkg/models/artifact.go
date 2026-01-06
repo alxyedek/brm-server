@@ -54,6 +54,21 @@ type ArtifactRange struct {
 	Range ByteRange `json:"range"`
 }
 
+// BaseStorage provides common functionality for all storage implementations.
+type BaseStorage struct {
+	alias string
+}
+
+// Alias returns the alias/name of the storage.
+func (b *BaseStorage) Alias() string {
+	return b.alias
+}
+
+// SetAlias sets the alias/name of the storage.
+func (b *BaseStorage) SetAlias(alias string) {
+	b.alias = alias
+}
+
 // ArtifactStorage is the high-performance interface.
 type ArtifactStorage interface {
 	// Create streams data from 'r' to storage.
@@ -91,4 +106,7 @@ type ArtifactStorage interface {
 	// Implementations are definitely expected to suport this method.
 	// Implementations should handle their thread-safety internally, if they are declared as thread-safe.
 	UpdateMeta(ctx context.Context, meta ArtifactMeta) (*ArtifactMeta, error)
+
+	// Alias returns the alias/name of the storage.
+	Alias() string
 }

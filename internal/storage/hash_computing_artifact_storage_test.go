@@ -18,7 +18,7 @@ import (
 // TestHashComputingArtifactStorageUnknownHashDetection tests unknown hash detection
 func TestHashComputingArtifactStorageUnknownHashDetection(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestHashComputingArtifactStorageUnknownHashDetection(t *testing.T) {
 // TestHashComputingArtifactStorageKnownHashDelegation tests that known hashes delegate directly
 func TestHashComputingArtifactStorageKnownHashDelegation(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestHashComputingArtifactStorageKnownHashDelegation(t *testing.T) {
 // TestHashComputingArtifactStorageEmptyHash tests Create with empty hash
 func TestHashComputingArtifactStorageEmptyHash(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestHashComputingArtifactStorageEmptyHash(t *testing.T) {
 // TestHashComputingArtifactStorageShortHash tests Create with hash length < 3
 func TestHashComputingArtifactStorageShortHash(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestHashComputingArtifactStorageShortHash(t *testing.T) {
 // TestHashComputingArtifactStorageUnknownString tests Create with "UNKNOWN" hash
 func TestHashComputingArtifactStorageUnknownString(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestHashComputingArtifactStorageUnknownString(t *testing.T) {
 // TestHashComputingArtifactStorageHashComputationCorrectness tests SHA-256 computation correctness
 func TestHashComputingArtifactStorageHashComputationCorrectness(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestHashComputingArtifactStorageHashComputationCorrectness(t *testing.T) {
 // TestHashComputingArtifactStorageExistingHash tests handling when computed hash already exists
 func TestHashComputingArtifactStorageExistingHash(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestHashComputingArtifactStorageExistingHash(t *testing.T) {
 // TestHashComputingArtifactStorageTempFileCleanup tests temp file cleanup on errors
 func TestHashComputingArtifactStorageTempFileCleanup(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestHashComputingArtifactStorageTempFileCleanup(t *testing.T) {
 // TestHashComputingArtifactStorageDelegation tests that other methods delegate correctly
 func TestHashComputingArtifactStorageDelegation(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -434,7 +434,7 @@ func TestHashComputingArtifactStorageDelegation(t *testing.T) {
 // TestHashComputingArtifactStorageConcurrentUnknownHashes tests concurrent creates with unknown hashes
 func TestHashComputingArtifactStorageConcurrentUnknownHashes(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestHashComputingArtifactStorageConcurrentUnknownHashes(t *testing.T) {
 // TestHashComputingArtifactStorageWithMetadata tests Create with metadata and unknown hash
 func TestHashComputingArtifactStorageWithMetadata(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}

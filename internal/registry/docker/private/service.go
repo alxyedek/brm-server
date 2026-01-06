@@ -16,8 +16,8 @@ import (
 
 // DockerRegistryPrivateService handles core registry logic for private registries
 type DockerRegistryPrivateService struct {
-	storage models.ArtifactStorage
-	config  *models.PrivateRegistryConfig
+	storage     models.ArtifactStorage
+	description string
 
 	// Blob upload session management
 	uploadSessions map[string]*UploadSession
@@ -37,10 +37,10 @@ type UploadSession struct {
 // NewDockerRegistryPrivateService creates a new private Docker registry service
 func NewDockerRegistryPrivateService(
 	storageAlias string,
-	config *models.PrivateRegistryConfig,
+	description string,
 ) (*DockerRegistryPrivateService, error) {
 	service := &DockerRegistryPrivateService{
-		config:         config,
+		description:    description,
 		uploadSessions: make(map[string]*UploadSession),
 	}
 

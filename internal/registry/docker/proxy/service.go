@@ -25,20 +25,20 @@ type DockerRegistryProxyService struct {
 func NewDockerRegistryProxyService(
 	storageAlias string,
 	upstream *models.UpstreamRegistry,
-	config *models.ProxyRegistryConfig,
+	cacheTTL int64,
 ) (*DockerRegistryProxyService, error) {
 	// Create upstream client
 	client := NewDockerRegistryProxyClient(upstream)
 
 	// Determine cache TTL
-	cacheTTL := 168 * time.Hour // Default 7 days
-	if config != nil && config.CacheTTL > 0 {
-		cacheTTL = time.Duration(config.CacheTTL) * time.Second
+	ttl := 168 * time.Hour // Default 7 days
+	if cacheTTL > 0 {
+		ttl = time.Duration(cacheTTL) * time.Second
 	}
 
 	return &DockerRegistryProxyService{
 		client:         client,
-		cacheTTL:       cacheTTL,
+		cacheTTL:       ttl,
 		upstreamConfig: upstream,
 	}, nil
 }

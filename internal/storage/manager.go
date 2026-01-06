@@ -37,59 +37,74 @@ func GetManager() *StorageManager {
 // init registers built-in storage factory functions
 func (sm *StorageManager) init() {
 	// Register SimpleFileStorage factory
+	// Parameters: [alias, basePath]
 	sm.RegisterFactory("std.filestorage", func(params ...interface{}) (models.ArtifactStorage, error) {
-		if len(params) == 0 {
-			return nil, fmt.Errorf("filestorage requires basePath parameter")
+		if len(params) < 2 {
+			return nil, fmt.Errorf("filestorage requires alias and basePath parameters")
 		}
-		basePath, ok := params[0].(string)
+		alias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("filestorage alias must be a string")
+		}
+		basePath, ok := params[1].(string)
 		if !ok {
 			return nil, fmt.Errorf("filestorage basePath must be a string")
 		}
-		return NewSimpleFileStorage(basePath)
+		return NewSimpleFileStorage(alias, basePath)
 	})
 
 	// Register ConcurrentArtifactStorage factory
-	// Parameters: [baseDir, lockDir, lockTimeout]
+	// Parameters: [alias, baseDir, lockDir, lockTimeout]
 	sm.RegisterFactory("concurrent.filestorage", func(params ...interface{}) (models.ArtifactStorage, error) {
-		if len(params) < 3 {
-			return nil, fmt.Errorf("concurrent.filestorage requires baseDir, lockDir, and lockTimeout parameters")
+		if len(params) < 4 {
+			return nil, fmt.Errorf("concurrent.filestorage requires alias, baseDir, lockDir, and lockTimeout parameters")
 		}
 
-		baseDir, ok := params[0].(string)
+		alias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("concurrent.filestorage alias must be a string")
+		}
+
+		baseDir, ok := params[1].(string)
 		if !ok {
 			return nil, fmt.Errorf("concurrent.filestorage baseDir must be a string")
 		}
 
-		lockDir, ok := params[1].(string)
+		lockDir, ok := params[2].(string)
 		if !ok {
 			return nil, fmt.Errorf("concurrent.filestorage lockDir must be a string")
 		}
 
-		lockTimeout, ok := params[2].(time.Duration)
+		lockTimeout, ok := params[3].(time.Duration)
 		if !ok {
 			return nil, fmt.Errorf("concurrent.filestorage lockTimeout must be a time.Duration")
 		}
 
 		// Create underlying SimpleFileStorage
-		storage, err := NewSimpleFileStorage(baseDir)
+		storage, err := NewSimpleFileStorage(alias, baseDir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create underlying storage: %w", err)
 		}
 
-		// Wrap with ConcurrentArtifactStorage
+		// Wrap with ConcurrentArtifactStorage (alias is already set on SimpleFileStorage)
 		return NewConcurrentArtifactStorage(storage, lockDir, lockTimeout)
 	})
 
 	// Register HashComputingArtifactStorage factory
-	// Parameters: [baseDir] or [baseDir, lockDir, lockTimeout]
-	// If 1 parameter: wraps SimpleFileStorage
-	// If 3 parameters: wraps ConcurrentArtifactStorage
+	// Parameters: [alias, baseDir] or [alias, baseDir, lockDir, lockTimeout]
+	// If 2 parameters: wraps SimpleFileStorage
+	// If 4 parameters: wraps ConcurrentArtifactStorage
 	sm.RegisterFactory("hashcomputing.filestorage", func(params ...interface{}) (models.ArtifactStorage, error) {
-		if len(params) == 0 {
-			return nil, fmt.Errorf("hashcomputing.filestorage requires at least baseDir parameter")
+		if len(params) < 2 {
+			return nil, fmt.Errorf("hashcomputing.filestorage requires at least alias and baseDir parameters")
 		}
 
-		baseDir, ok := params[0].(string)
+		alias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("hashcomputing.filestorage alias must be a string")
+		}
+
+		baseDir, ok := params[1].(string)
 		if !ok {
 			return nil, fmt.Errorf("hashcomputing.filestorage baseDir must be a string")
 		}
@@ -97,38 +112,40 @@ func (sm *StorageManager) init() {
 		var underlyingStorage models.ArtifactStorage
 		var err error
 
-		if len(params) == 1 {
+		if len(params) == 2 {
 			// Simple file storage only
-			underlyingStorage, err = NewSimpleFileStorage(baseDir)
+			underlyingStorage, err = NewSimpleFileStorage(alias, baseDir)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create underlying storage: %w", err)
 			}
-		} else if len(params) == 3 {
+		} else if len(params) == 4 {
 			// Concurrent file storage with locking
-			lockDir, ok := params[1].(string)
+			lockDir, ok := params[2].(string)
 			if !ok {
 				return nil, fmt.Errorf("hashcomputing.filestorage lockDir must be a string")
 			}
 
-			lockTimeout, ok := params[2].(time.Duration)
+			lockTimeout, ok := params[3].(time.Duration)
 			if !ok {
 				return nil, fmt.Errorf("hashcomputing.filestorage lockTimeout must be a time.Duration")
 			}
 
-			simpleStorage, err := NewSimpleFileStorage(baseDir)
+			// Create SimpleFileStorage with alias
+			simpleStorage, err := NewSimpleFileStorage(alias, baseDir)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create underlying storage: %w", err)
 			}
 
+			// Wrap with ConcurrentArtifactStorage (alias is already set on SimpleFileStorage)
 			underlyingStorage, err = NewConcurrentArtifactStorage(simpleStorage, lockDir, lockTimeout)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create concurrent storage: %w", err)
 			}
 		} else {
-			return nil, fmt.Errorf("hashcomputing.filestorage requires 1 parameter (baseDir) or 3 parameters (baseDir, lockDir, lockTimeout)")
+			return nil, fmt.Errorf("hashcomputing.filestorage requires 2 parameters (alias, baseDir) or 4 parameters (alias, baseDir, lockDir, lockTimeout)")
 		}
 
-		// Wrap with HashComputingArtifactStorage
+		// Wrap with HashComputingArtifactStorage (alias is already set on innermost storage)
 		return NewHashComputingArtifactStorage(underlyingStorage), nil
 	})
 }
@@ -187,8 +204,8 @@ func (sm *StorageManager) Create(className, alias string, params ...interface{})
 		return nil, fmt.Errorf("storage class not found: %s", className)
 	}
 
-	// Create storage instance
-	storage, err := factory(params...)
+	// Create storage instance (pass alias as first parameter)
+	storage, err := factory(append([]interface{}{alias}, params...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage instance: %w", err)
 	}

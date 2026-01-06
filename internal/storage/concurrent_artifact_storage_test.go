@@ -18,6 +18,7 @@ import (
 
 // mockStorage is a simple mock implementation of ArtifactStorage for testing
 type mockStorage struct {
+	models.BaseStorage
 	creates map[string]*models.ArtifactMeta
 	deletes map[string][]models.ArtifactReference
 	mu      sync.Mutex

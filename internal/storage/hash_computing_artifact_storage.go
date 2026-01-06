@@ -37,6 +37,11 @@ func NewHashComputingArtifactStorage(storage models.ArtifactStorage) *HashComput
 	}
 }
 
+// Alias returns the alias/name of the storage by delegating to the wrapped storage.
+func (h *HashComputingArtifactStorage) Alias() string {
+	return h.storage.Alias()
+}
+
 // isUnknownHash checks if the hash should be treated as unknown.
 // Returns true if hash is empty, length < 3, or equals "UNKNOWN" (case-insensitive).
 // Note: empty hash already satisfies length < 3, so we check it first.

@@ -13,15 +13,20 @@ import (
 
 // SimpleFileStorage implements models.ArtifactStorage
 type SimpleFileStorage struct {
+	models.BaseStorage
 	baseDir string
 }
 
 // NewSimpleFileStorage creates a new storage instance and ensures the base directory exists.
-func NewSimpleFileStorage(baseDir string) (*SimpleFileStorage, error) {
+func NewSimpleFileStorage(alias, baseDir string) (*SimpleFileStorage, error) {
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create base directory: %w", err)
 	}
-	return &SimpleFileStorage{baseDir: baseDir}, nil
+	s := &SimpleFileStorage{
+		baseDir: baseDir,
+	}
+	s.BaseStorage.SetAlias(alias)
+	return s, nil
 }
 
 // getPaths returns the directory, artifact path, and metadata path for a given hash.

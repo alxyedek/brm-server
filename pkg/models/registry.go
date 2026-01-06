@@ -1,5 +1,42 @@
 package models
 
+import (
+	"fmt"
+	"net"
+)
+
+// ServiceBinding represents a network address binding (IP and port) for a registry service.
+// It implements the net.Addr interface.
+type ServiceBinding struct {
+	IP   string
+	Port int
+}
+
+// Network returns the network type (always "tcp" for ServiceBinding).
+func (s *ServiceBinding) Network() string {
+	return "tcp"
+}
+
+// String returns the string representation of the address (e.g., "0.0.0.0:5000").
+func (s *ServiceBinding) String() string {
+	return fmt.Sprintf("%s:%d", s.IP, s.Port)
+}
+
+// BaseRegistry provides common functionality for all registry implementations.
+type BaseRegistry struct {
+	alias string
+}
+
+// Alias returns the alias/name of the registry.
+func (b *BaseRegistry) Alias() string {
+	return b.alias
+}
+
+// SetAlias sets the alias/name of the registry.
+func (b *BaseRegistry) SetAlias(alias string) {
+	b.alias = alias
+}
+
 // RegistryType represents the type of registry.
 type RegistryType string
 
@@ -22,6 +59,9 @@ type Registry interface {
 	// ImplementationType returns the implementation type/class name of the registry (e.g., "docker.registry", "raw.registry").
 	// This is used by managers to identify the registry implementation type.
 	ImplementationType() string
+
+	// Alias returns the alias/name of the registry.
+	Alias() string
 }
 
 // UpstreamRegistry represents the configuration for an upstream registry used by proxy registries.
@@ -41,18 +81,12 @@ type UpstreamRegistry struct {
 	TTL int64 `json:"ttl,omitempty"`
 }
 
-// PrivateRegistryConfig holds configuration for a private registry.
-type PrivateRegistryConfig struct {
-	// URL is the registry URL/endpoint (e.g., "https://my-registry.example.com").
-	URL string `json:"url,omitempty"`
-
-	// Description is an optional human-readable description of the registry.
-	Description string `json:"description,omitempty"`
-}
-
 // PrivateRegistry represents a private registry that stores artifacts locally.
 // It implements the Registry interface.
 type PrivateRegistry struct {
+	// BaseRegistry provides common registry functionality (alias).
+	BaseRegistry
+
 	// registryType is always RegistryTypePrivate for private registries.
 	registryType RegistryType `json:"type"`
 
@@ -63,8 +97,11 @@ type PrivateRegistry struct {
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
 	StorageAlias string `json:"storageAlias"`
 
-	// Config holds additional configuration for the private registry.
-	Config *PrivateRegistryConfig `json:"config,omitempty"`
+	// ServiceBinding is the network address binding (IP and port) for this registry service.
+	ServiceBinding net.Addr `json:"serviceBinding,omitempty"`
+
+	// Description is an optional human-readable description of the registry.
+	Description string `json:"description,omitempty"`
 }
 
 // Type returns the registry type.
@@ -77,16 +114,12 @@ func (p *PrivateRegistry) ImplementationType() string {
 	return p.implementationType
 }
 
-// ProxyRegistryConfig holds configuration for a proxy registry.
-type ProxyRegistryConfig struct {
-	// CacheTTL is the cache expiration time in seconds.
-	// After this period, cached artifacts may be refreshed from upstream.
-	CacheTTL int64 `json:"cacheTTL,omitempty"`
-}
-
 // ProxyRegistry represents a proxy registry that caches artifacts from upstream registries.
 // It implements the Registry interface.
 type ProxyRegistry struct {
+	// BaseRegistry provides common registry functionality (alias).
+	BaseRegistry
+
 	// registryType is always RegistryTypeProxy for proxy registries.
 	registryType RegistryType `json:"type"`
 
@@ -100,8 +133,12 @@ type ProxyRegistry struct {
 	// Upstream is the upstream registry configuration.
 	Upstream *UpstreamRegistry `json:"upstream"`
 
-	// Config holds additional configuration for the proxy registry.
-	Config *ProxyRegistryConfig `json:"config,omitempty"`
+	// ServiceBinding is the network address binding (IP and port) for this registry service.
+	ServiceBinding net.Addr `json:"serviceBinding,omitempty"`
+
+	// CacheTTL is the cache expiration time in seconds.
+	// After this period, cached artifacts may be refreshed from upstream.
+	CacheTTL int64 `json:"cacheTTL,omitempty"`
 }
 
 // Type returns the registry type.
@@ -114,17 +151,12 @@ func (p *ProxyRegistry) ImplementationType() string {
 	return p.implementationType
 }
 
-// CompoundRegistryConfig holds configuration for a compound registry.
-type CompoundRegistryConfig struct {
-	// ReadStrategy defines the strategy for reading artifacts.
-	// Possible values: "local-first" (check local storage first, then proxies),
-	// "proxy-first" (check proxies first, then local), or "local-only" (only local).
-	ReadStrategy string `json:"readStrategy,omitempty"`
-}
-
 // CompoundRegistry represents a compound registry that combines private storage with proxy registries.
 // It implements the Registry interface.
 type CompoundRegistry struct {
+	// BaseRegistry provides common registry functionality (alias).
+	BaseRegistry
+
 	// registryType is always RegistryTypeCompound for compound registries.
 	registryType RegistryType `json:"type"`
 
@@ -139,8 +171,13 @@ type CompoundRegistry struct {
 	// The order matters: artifacts are checked from proxies in the order they appear in this slice.
 	Proxies []*ProxyRegistry `json:"proxies,omitempty"`
 
-	// Config holds additional configuration for the compound registry.
-	Config *CompoundRegistryConfig `json:"config,omitempty"`
+	// ServiceBinding is the network address binding (IP and port) for this registry service.
+	ServiceBinding net.Addr `json:"serviceBinding,omitempty"`
+
+	// ReadStrategy defines the strategy for reading artifacts.
+	// Possible values: "local-first" (check local storage first, then proxies),
+	// "proxy-first" (check proxies first, then local), or "local-only" (only local).
+	ReadStrategy string `json:"readStrategy,omitempty"`
 }
 
 // Type returns the registry type.

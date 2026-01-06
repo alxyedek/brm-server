@@ -13,7 +13,7 @@ import (
 // TestSimpleFileStorageFileSystemStructure tests the git-like directory structure
 func TestSimpleFileStorageFileSystemStructure(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestSimpleFileStorageFileSystemStructure(t *testing.T) {
 // TestSimpleFileStorageZeroPadding tests zero padding behavior in Update
 func TestSimpleFileStorageZeroPadding(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestSimpleFileStorageZeroPadding(t *testing.T) {
 // TestSimpleFileStorageMetadataFileExtension tests metadata file naming
 func TestSimpleFileStorageMetadataFileExtension(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestSimpleFileStorageMetadataFileExtension(t *testing.T) {
 // TestSimpleFileStorageMultipleReferences tests creating artifacts with multiple references
 func TestSimpleFileStorageMultipleReferences(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestSimpleFileStorageMultipleReferences(t *testing.T) {
 // TestSimpleFileStorageReferenceMerging tests merging references when creating existing artifact
 func TestSimpleFileStorageReferenceMerging(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestSimpleFileStorageReferenceMerging(t *testing.T) {
 // TestSimpleFileStorageHashConflict tests hash conflict error when sizes don't match
 func TestSimpleFileStorageHashConflict(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestSimpleFileStorageHashConflict(t *testing.T) {
 // TestSimpleFileStorageDeleteWithMultipleReferences tests deleting one reference while keeping others
 func TestSimpleFileStorageDeleteWithMultipleReferences(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestSimpleFileStorageDeleteWithMultipleReferences(t *testing.T) {
 // TestSimpleFileStorageDeleteLastReference tests moving to trash when last reference is deleted
 func TestSimpleFileStorageDeleteLastReference(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestSimpleFileStorageDeleteLastReference(t *testing.T) {
 // TestSimpleFileStorageReferenceDeduplication tests that duplicate references update timestamp
 func TestSimpleFileStorageReferenceDeduplication(t *testing.T) {
 	baseDir := t.TempDir()
-	storage, err := NewSimpleFileStorage(baseDir)
+	storage, err := NewSimpleFileStorage("test-storage", baseDir)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}

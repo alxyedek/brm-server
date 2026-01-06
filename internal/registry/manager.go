@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"net"
 	"regexp"
 	"sync"
 
@@ -38,54 +39,80 @@ func GetManager() *RegistryManager {
 // init registers built-in registry factory functions
 func (rm *RegistryManager) init() {
 	// Register Docker registry factory
-	// Parameters: [storageAlias string, upstream *models.UpstreamRegistry, config *models.ProxyRegistryConfig]
+	// Parameters: [alias, serviceBinding, storageAlias, upstream, cacheTTL]
 	rm.RegisterFactory("docker.registry", func(params ...interface{}) (models.Registry, error) {
-		if len(params) < 2 {
-			return nil, fmt.Errorf("docker.registry requires at least storageAlias and upstream parameters")
+		if len(params) < 3 {
+			return nil, fmt.Errorf("docker.registry requires at least alias, serviceBinding, storageAlias, and upstream parameters")
 		}
 
-		storageAlias, ok := params[0].(string)
+		alias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("docker.registry alias must be a string")
+		}
+
+		var serviceBinding net.Addr
+		if params[1] != nil {
+			serviceBinding, ok = params[1].(net.Addr)
+			if !ok {
+				return nil, fmt.Errorf("docker.registry serviceBinding must be net.Addr")
+			}
+		}
+
+		storageAlias, ok := params[2].(string)
 		if !ok {
 			return nil, fmt.Errorf("docker.registry storageAlias must be a string")
 		}
 
-		upstream, ok := params[1].(*models.UpstreamRegistry)
+		upstream, ok := params[3].(*models.UpstreamRegistry)
 		if !ok {
 			return nil, fmt.Errorf("docker.registry upstream must be *models.UpstreamRegistry")
 		}
 
-		var config *models.ProxyRegistryConfig
-		if len(params) >= 3 {
-			config, ok = params[2].(*models.ProxyRegistryConfig)
+		var cacheTTL int64
+		if len(params) >= 5 {
+			cacheTTL, ok = params[4].(int64)
 			if !ok {
-				return nil, fmt.Errorf("docker.registry config must be *models.ProxyRegistryConfig")
+				return nil, fmt.Errorf("docker.registry cacheTTL must be int64")
 			}
 		}
 
-		return proxy.NewDockerRegistryProxy(storageAlias, upstream, config)
+		return proxy.NewDockerRegistryProxy(alias, storageAlias, upstream, serviceBinding, cacheTTL)
 	})
 
 	// Register Docker private registry factory
-	// Parameters: [storageAlias string, config *models.PrivateRegistryConfig]
+	// Parameters: [alias, serviceBinding, storageAlias, description]
 	rm.RegisterFactory("docker.registry.private", func(params ...interface{}) (models.Registry, error) {
-		if len(params) < 1 {
-			return nil, fmt.Errorf("docker.registry.private requires at least storageAlias parameter")
+		if len(params) < 2 {
+			return nil, fmt.Errorf("docker.registry.private requires at least alias and serviceBinding parameters")
 		}
 
-		storageAlias, ok := params[0].(string)
+		alias, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("docker.registry.private alias must be a string")
+		}
+
+		var serviceBinding net.Addr
+		if params[1] != nil {
+			serviceBinding, ok = params[1].(net.Addr)
+			if !ok {
+				return nil, fmt.Errorf("docker.registry.private serviceBinding must be net.Addr")
+			}
+		}
+
+		storageAlias, ok := params[2].(string)
 		if !ok {
 			return nil, fmt.Errorf("docker.registry.private storageAlias must be a string")
 		}
 
-		var config *models.PrivateRegistryConfig
-		if len(params) >= 2 {
-			config, ok = params[1].(*models.PrivateRegistryConfig)
+		var description string
+		if len(params) >= 4 {
+			description, ok = params[3].(string)
 			if !ok {
-				return nil, fmt.Errorf("docker.registry.private config must be *models.PrivateRegistryConfig")
+				return nil, fmt.Errorf("docker.registry.private description must be a string")
 			}
 		}
 
-		return private.NewDockerRegistryPrivate(storageAlias, config)
+		return private.NewDockerRegistryPrivate(alias, storageAlias, serviceBinding, description)
 	})
 }
 
@@ -123,7 +150,8 @@ func (rm *RegistryManager) RegisterFactory(className string, factory func(...int
 
 // Create creates a new registry instance with the given class name and alias
 // The alias must be a valid DNS name (lowercase). The params are passed to the factory function.
-func (rm *RegistryManager) Create(className, alias string, params ...interface{}) (models.Registry, error) {
+// serviceBinding is optional and can be nil.
+func (rm *RegistryManager) Create(className, alias string, serviceBinding net.Addr, params ...interface{}) (models.Registry, error) {
 	// Validate alias is valid DNS name
 	if !isValidDNSName(alias) {
 		return nil, fmt.Errorf("invalid DNS name for alias: %s", alias)
@@ -143,8 +171,8 @@ func (rm *RegistryManager) Create(className, alias string, params ...interface{}
 		return nil, fmt.Errorf("registry class not found: %s", className)
 	}
 
-	// Create registry instance
-	registry, err := factory(params...)
+	// Create registry instance (pass alias and serviceBinding as first parameters)
+	registry, err := factory(append([]interface{}{alias, serviceBinding}, params...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create registry instance: %w", err)
 	}
