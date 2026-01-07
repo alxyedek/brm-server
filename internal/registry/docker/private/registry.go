@@ -11,12 +11,10 @@ import (
 // DockerRegistryPrivate implements a private Docker registry that stores artifacts locally
 type DockerRegistryPrivate struct {
 	models.BaseRegistry
-	registryType       models.RegistryType
-	implementationType string
-	storageAlias       string
-	serviceBinding     net.Addr
-	description        string
-	service            *DockerRegistryPrivateService
+	storageAlias   string
+	serviceBinding net.Addr
+	description    string
+	service        *DockerRegistryPrivateService
 }
 
 // NewDockerRegistryPrivate creates a new private Docker registry instance
@@ -47,26 +45,16 @@ func NewDockerRegistryPrivate(
 	service.SetStorage(storageInstance)
 
 	registry := &DockerRegistryPrivate{
-		registryType:       models.RegistryTypePrivate,
-		implementationType: "docker.registry.private",
-		storageAlias:       storageAlias,
-		serviceBinding:     serviceBinding,
-		description:        description,
-		service:            service,
+		storageAlias:   storageAlias,
+		serviceBinding: serviceBinding,
+		description:    description,
+		service:        service,
 	}
 	registry.BaseRegistry.SetAlias(alias)
+	registry.BaseRegistry.SetType(models.RegistryTypePrivate)
+	registry.BaseRegistry.SetImplementationType("docker.registry.private")
 
 	return registry, nil
-}
-
-// Type returns the registry type
-func (d *DockerRegistryPrivate) Type() models.RegistryType {
-	return d.registryType
-}
-
-// ImplementationType returns the implementation type/class name
-func (d *DockerRegistryPrivate) ImplementationType() string {
-	return d.implementationType
 }
 
 // Service returns the Docker registry service instance

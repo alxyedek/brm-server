@@ -24,7 +24,9 @@ func (s *ServiceBinding) String() string {
 
 // BaseRegistry provides common functionality for all registry implementations.
 type BaseRegistry struct {
-	alias string
+	alias              string
+	registryType       RegistryType
+	implementationType string
 }
 
 // Alias returns the alias/name of the registry.
@@ -35,6 +37,26 @@ func (b *BaseRegistry) Alias() string {
 // SetAlias sets the alias/name of the registry.
 func (b *BaseRegistry) SetAlias(alias string) {
 	b.alias = alias
+}
+
+// Type returns the registry type (private, proxy, or compound).
+func (b *BaseRegistry) Type() RegistryType {
+	return b.registryType
+}
+
+// SetType sets the registry type.
+func (b *BaseRegistry) SetType(registryType RegistryType) {
+	b.registryType = registryType
+}
+
+// ImplementationType returns the implementation type/class name of the registry.
+func (b *BaseRegistry) ImplementationType() string {
+	return b.implementationType
+}
+
+// SetImplementationType sets the implementation type/class name.
+func (b *BaseRegistry) SetImplementationType(implementationType string) {
+	b.implementationType = implementationType
 }
 
 // RegistryType represents the type of registry.
@@ -84,14 +106,8 @@ type UpstreamRegistry struct {
 // PrivateRegistry represents a private registry that stores artifacts locally.
 // It implements the Registry interface.
 type PrivateRegistry struct {
-	// BaseRegistry provides common registry functionality (alias).
+	// BaseRegistry provides common registry functionality (alias, type, implementationType).
 	BaseRegistry
-
-	// registryType is always RegistryTypePrivate for private registries.
-	registryType RegistryType `json:"type"`
-
-	// implementationType is the implementation class name (e.g., "docker.registry", "raw.registry").
-	implementationType string `json:"implementationType"`
 
 	// StorageAlias is the alias/name of the storage backend registered in StorageManager.
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
@@ -104,27 +120,11 @@ type PrivateRegistry struct {
 	Description string `json:"description,omitempty"`
 }
 
-// Type returns the registry type.
-func (p *PrivateRegistry) Type() RegistryType {
-	return p.registryType
-}
-
-// ImplementationType returns the implementation type/class name.
-func (p *PrivateRegistry) ImplementationType() string {
-	return p.implementationType
-}
-
 // ProxyRegistry represents a proxy registry that caches artifacts from upstream registries.
 // It implements the Registry interface.
 type ProxyRegistry struct {
-	// BaseRegistry provides common registry functionality (alias).
+	// BaseRegistry provides common registry functionality (alias, type, implementationType).
 	BaseRegistry
-
-	// registryType is always RegistryTypeProxy for proxy registries.
-	registryType RegistryType `json:"type"`
-
-	// implementationType is the implementation class name (e.g., "docker.registry", "raw.registry").
-	implementationType string `json:"implementationType"`
 
 	// StorageAlias is the alias/name of the cache storage backend registered in StorageManager.
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
@@ -141,27 +141,11 @@ type ProxyRegistry struct {
 	CacheTTL int64 `json:"cacheTTL,omitempty"`
 }
 
-// Type returns the registry type.
-func (p *ProxyRegistry) Type() RegistryType {
-	return p.registryType
-}
-
-// ImplementationType returns the implementation type/class name.
-func (p *ProxyRegistry) ImplementationType() string {
-	return p.implementationType
-}
-
 // CompoundRegistry represents a compound registry that combines private storage with proxy registries.
 // It implements the Registry interface.
 type CompoundRegistry struct {
-	// BaseRegistry provides common registry functionality (alias).
+	// BaseRegistry provides common registry functionality (alias, type, implementationType).
 	BaseRegistry
-
-	// registryType is always RegistryTypeCompound for compound registries.
-	registryType RegistryType `json:"type"`
-
-	// implementationType is the implementation class name (e.g., "docker.registry", "raw.registry").
-	implementationType string `json:"implementationType"`
 
 	// PrivateStorageAlias is the alias/name of the private storage backend registered in StorageManager.
 	// The actual ArtifactStorage instance is resolved by looking up this alias.
@@ -178,14 +162,4 @@ type CompoundRegistry struct {
 	// Possible values: "local-first" (check local storage first, then proxies),
 	// "proxy-first" (check proxies first, then local), or "local-only" (only local).
 	ReadStrategy string `json:"readStrategy,omitempty"`
-}
-
-// Type returns the registry type.
-func (c *CompoundRegistry) Type() RegistryType {
-	return c.registryType
-}
-
-// ImplementationType returns the implementation type/class name.
-func (c *CompoundRegistry) ImplementationType() string {
-	return c.implementationType
 }

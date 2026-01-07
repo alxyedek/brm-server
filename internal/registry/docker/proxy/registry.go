@@ -11,13 +11,11 @@ import (
 // DockerRegistryProxy implements a Docker registry proxy that caches artifacts from upstream registries
 type DockerRegistryProxy struct {
 	models.BaseRegistry
-	registryType       models.RegistryType
-	implementationType string
-	storageAlias       string
-	upstream           *models.UpstreamRegistry
-	serviceBinding     net.Addr
-	cacheTTL           int64
-	service            *DockerRegistryProxyService
+	storageAlias   string
+	upstream       *models.UpstreamRegistry
+	serviceBinding net.Addr
+	cacheTTL       int64
+	service        *DockerRegistryProxyService
 }
 
 // NewDockerRegistryProxy creates a new Docker registry proxy instance
@@ -55,27 +53,17 @@ func NewDockerRegistryProxy(
 	service.SetStorage(storageInstance)
 
 	registry := &DockerRegistryProxy{
-		registryType:       models.RegistryTypeProxy,
-		implementationType: "docker.registry",
-		storageAlias:       storageAlias,
-		upstream:           upstream,
-		serviceBinding:     serviceBinding,
-		cacheTTL:           cacheTTL,
-		service:            service,
+		storageAlias:   storageAlias,
+		upstream:       upstream,
+		serviceBinding: serviceBinding,
+		cacheTTL:       cacheTTL,
+		service:        service,
 	}
 	registry.BaseRegistry.SetAlias(alias)
+	registry.BaseRegistry.SetType(models.RegistryTypeProxy)
+	registry.BaseRegistry.SetImplementationType("docker.registry")
 
 	return registry, nil
-}
-
-// Type returns the registry type
-func (d *DockerRegistryProxy) Type() models.RegistryType {
-	return d.registryType
-}
-
-// ImplementationType returns the implementation type/class name
-func (d *DockerRegistryProxy) ImplementationType() string {
-	return d.implementationType
 }
 
 // Service returns the Docker registry service instance
