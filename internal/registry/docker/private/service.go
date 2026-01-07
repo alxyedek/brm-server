@@ -123,8 +123,14 @@ func (s *DockerRegistryPrivateService) GetManifest(ctx context.Context, name, re
 		return nil, "", fmt.Errorf("manifest reference not found: %w", err)
 	}
 
-	// Extract digest from metadata (stored in Hash field)
-	digest := meta.Hash
+	// Extract digest from metadata (stored in References with Repo="digest")
+	digest := ""
+	for _, ref := range meta.References {
+		if ref.Repo == "digest" {
+			digest = ref.Name
+			break
+		}
+	}
 	if digest == "" {
 		return nil, "", fmt.Errorf("invalid manifest reference: digest not found")
 	}
@@ -175,7 +181,14 @@ func (s *DockerRegistryPrivateService) CheckManifestExists(ctx context.Context, 
 		return false, "", nil // Not found, not an error
 	}
 
-	digest := meta.Hash
+	// Extract digest from References (stored with Repo="digest")
+	digest := ""
+	for _, ref := range meta.References {
+		if ref.Repo == "digest" {
+			digest = ref.Name
+			break
+		}
+	}
 	if digest == "" {
 		return false, "", nil
 	}
@@ -267,20 +280,36 @@ func (s *DockerRegistryPrivateService) PutManifest(ctx context.Context, name, re
 	}
 
 	// Create reference mapping: name/reference -> digest
+	// Store the digest in the References field as a special reference
 	refKey := s.getManifestRefKey(name, reference)
 	refMeta := &models.ArtifactMeta{
-		Hash:             digest, // Store digest in Hash field
+		Hash:             refKey,
 		Length:           0,
 		CreatedTimestamp: time.Now().Unix(),
-		References:       []models.ArtifactReference{},
+		// Store digest in References as a special reference with Repo="digest"
+		References: []models.ArtifactReference{
+			{
+				Name:                digest, // Store digest in Name field
+				Repo:                "digest",
+				ReferencedTimestamp: time.Now().Unix(),
+			},
+		},
 	}
 
-	_, err = s.storage.Create(ctx, refKey, nil, 0, refMeta)
+	// Use empty reader for reference mapping (no data, just metadata)
+	_, err = s.storage.Create(ctx, refKey, bytes.NewReader([]byte{}), 0, refMeta)
 	if err != nil {
 		// If reference already exists, update it
 		existingRefMeta, getErr := s.storage.GetMeta(ctx, refKey)
 		if getErr == nil {
-			existingRefMeta.Hash = digest // Update digest
+			// Update digest in References
+			existingRefMeta.References = []models.ArtifactReference{
+				{
+					Name:                digest,
+					Repo:                "digest",
+					ReferencedTimestamp: time.Now().Unix(),
+				},
+			}
 			_, updateErr := s.storage.UpdateMeta(ctx, *existingRefMeta)
 			if updateErr != nil {
 				return fmt.Errorf("failed to update manifest reference: %w", updateErr)
