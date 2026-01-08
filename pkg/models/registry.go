@@ -8,8 +8,8 @@ import (
 // ServiceBinding represents a network address binding (IP and port) for a registry service.
 // It implements the net.Addr interface.
 type ServiceBinding struct {
-	IP   string
-	Port int
+	IP   string `json:"ip"`
+	Port int    `json:"port"`
 }
 
 // Network returns the network type (always "tcp" for ServiceBinding).

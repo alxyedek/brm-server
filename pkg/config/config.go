@@ -307,3 +307,88 @@ func (c *Config) All() map[string]interface{} {
 
 	return result
 }
+
+// Save writes the configuration to a YAML file.
+// If prefix is set, only saves keys under that prefix.
+// Creates the directory if it doesn't exist.
+func (c *Config) Save(filePath string) error {
+	// Get the data to save
+	data := c.All()
+
+	// If prefix is set, we need to convert the relative keys back to nested structure
+	var saveData interface{} = data
+	if c.prefix != "" {
+		// Reconstruct nested structure from flat keys
+		saveData = c.reconstructNested(data)
+	} else {
+		// Convert flat keys (like "server.port") to nested structure
+		saveData = c.reconstructNested(data)
+	}
+
+	// Marshal to YAML
+	parser := yaml.Parser()
+
+	// Convert to map[string]interface{}
+	dataMap, ok := saveData.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("configuration data must be a map[string]interface{}")
+	}
+
+	yamlBytes, err := parser.Marshal(dataMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal configuration to YAML: %w", err)
+	}
+
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(filePath, yamlBytes, 0644); err != nil {
+		return fmt.Errorf("failed to write configuration file: %w", err)
+	}
+
+	return nil
+}
+
+// reconstructNested converts flat keys (like "server.port") to nested map structure
+func (c *Config) reconstructNested(flat map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for key, value := range flat {
+		parts := strings.Split(key, ".")
+		current := result
+
+		// Navigate/create nested structure
+		for i := 0; i < len(parts)-1; i++ {
+			part := parts[i]
+			if _, exists := current[part]; !exists {
+				current[part] = make(map[string]interface{})
+			}
+			current = current[part].(map[string]interface{})
+		}
+
+		// Set the final value
+		current[parts[len(parts)-1]] = value
+	}
+
+	return result
+}
+
+// Set sets a configuration value at the given key
+func (c *Config) Set(key string, value interface{}) error {
+	fullKey := c.buildKey(key)
+	return c.k.Set(fullKey, value)
+}
+
+// SetAll sets multiple configuration values from a map
+func (c *Config) SetAll(data map[string]interface{}) error {
+	for key, value := range data {
+		if err := c.Set(key, value); err != nil {
+			return fmt.Errorf("failed to set key %s: %w", key, err)
+		}
+	}
+	return nil
+}

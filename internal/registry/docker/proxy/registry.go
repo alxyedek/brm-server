@@ -70,3 +70,23 @@ func NewDockerRegistryProxy(
 func (d *DockerRegistryProxy) Service() *DockerRegistryProxyService {
 	return d.service
 }
+
+// GetStorageAlias returns the storage alias
+func (d *DockerRegistryProxy) GetStorageAlias() string {
+	return d.storageAlias
+}
+
+// GetUpstream returns the upstream registry configuration
+func (d *DockerRegistryProxy) GetUpstream() *models.UpstreamRegistry {
+	return d.upstream
+}
+
+// GetServiceBinding returns the service binding
+func (d *DockerRegistryProxy) GetServiceBinding() net.Addr {
+	return d.serviceBinding
+}
+
+// GetCacheTTL returns the cache TTL
+func (d *DockerRegistryProxy) GetCacheTTL() int64 {
+	return d.cacheTTL
+}

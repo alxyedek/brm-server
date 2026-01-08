@@ -61,3 +61,18 @@ func NewDockerRegistryPrivate(
 func (d *DockerRegistryPrivate) Service() *DockerRegistryPrivateService {
 	return d.service
 }
+
+// GetStorageAlias returns the storage alias
+func (d *DockerRegistryPrivate) GetStorageAlias() string {
+	return d.storageAlias
+}
+
+// GetServiceBinding returns the service binding
+func (d *DockerRegistryPrivate) GetServiceBinding() net.Addr {
+	return d.serviceBinding
+}
+
+// GetDescription returns the description
+func (d *DockerRegistryPrivate) GetDescription() string {
+	return d.description
+}

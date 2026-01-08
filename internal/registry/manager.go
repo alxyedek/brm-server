@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"sync"
 
 	"brm/internal/registry/docker/private"
 	"brm/internal/registry/docker/proxy"
+	"brm/pkg/config"
 	"brm/pkg/models"
 )
 
@@ -181,4 +183,161 @@ func (rm *RegistryManager) Create(className, alias string, serviceBinding net.Ad
 	rm.registries[alias] = registry
 
 	return registry, nil
+}
+
+// convertServiceBinding converts net.Addr to *models.ServiceBinding
+func (rm *RegistryManager) convertServiceBinding(addr net.Addr) *models.ServiceBinding {
+	if addr == nil {
+		return nil
+	}
+	if sb, ok := addr.(*models.ServiceBinding); ok {
+		return sb
+	}
+	// Try to parse from String() format "ip:port"
+	addrStr := addr.String()
+	host, portStr, err := net.SplitHostPort(addrStr)
+	if err != nil {
+		return nil
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil
+	}
+	return &models.ServiceBinding{
+		IP:   host,
+		Port: port,
+	}
+}
+
+// SaveToConfig serializes all registry configurations to a map by extracting from instances
+func (rm *RegistryManager) SaveToConfig() map[string]interface{} {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+
+	result := make(map[string]interface{})
+	for alias, registry := range rm.registries {
+		regConfig := map[string]interface{}{
+			"class": registry.ImplementationType(),
+			"alias": registry.Alias(),
+		}
+
+		// Extract implementation-specific config
+		switch impl := registry.(type) {
+		case *private.DockerRegistryPrivate:
+			params := map[string]interface{}{
+				"storageAlias": impl.GetStorageAlias(),
+			}
+			if desc := impl.GetDescription(); desc != "" {
+				params["description"] = desc
+			}
+			regConfig["params"] = params
+			if sb := rm.convertServiceBinding(impl.GetServiceBinding()); sb != nil {
+				regConfig["serviceBinding"] = sb
+			}
+
+		case *proxy.DockerRegistryProxy:
+			params := map[string]interface{}{
+				"storageAlias": impl.GetStorageAlias(),
+			}
+			if upstream := impl.GetUpstream(); upstream != nil {
+				params["upstream"] = upstream
+			}
+			if cacheTTL := impl.GetCacheTTL(); cacheTTL > 0 {
+				params["cacheTTL"] = cacheTTL
+			}
+			regConfig["params"] = params
+			if sb := rm.convertServiceBinding(impl.GetServiceBinding()); sb != nil {
+				regConfig["serviceBinding"] = sb
+			}
+
+		default:
+			// Unknown implementation type - skip or log warning
+			continue
+		}
+
+		result[alias] = regConfig
+	}
+	return result
+}
+
+// LoadFromConfig creates registry instances from configuration
+func (rm *RegistryManager) LoadFromConfig(cfg *config.Config) error {
+	registriesConfig := cfg.GetSubConfig("registries")
+	if registriesConfig == nil {
+		return nil // No registries configured
+	}
+
+	aliases := registriesConfig.Keys()
+	for _, alias := range aliases {
+		registryConfig := registriesConfig.GetSubConfig(alias)
+
+		className := registryConfig.GetString("class")
+		if className == "" {
+			return fmt.Errorf("registry %s: class is required", alias)
+		}
+
+		// Extract service binding
+		var serviceBinding net.Addr
+		if registryConfig.Exists("serviceBinding") {
+			sbConfig := registryConfig.GetSubConfig("serviceBinding")
+			ip := sbConfig.GetString("ip")
+			port := sbConfig.GetInt("port")
+			if ip != "" && port > 0 {
+				serviceBinding = &models.ServiceBinding{
+					IP:   ip,
+					Port: port,
+				}
+			}
+		}
+
+		// Extract parameters based on class
+		paramsConfig := registryConfig.GetSubConfig("params")
+		var params []interface{}
+
+		switch className {
+		case "docker.registry":
+			storageAlias := paramsConfig.GetString("storageAlias")
+			if storageAlias == "" {
+				return fmt.Errorf("registry %s: storageAlias is required", alias)
+			}
+
+			// Extract upstream
+			if !paramsConfig.Exists("upstream") {
+				return fmt.Errorf("registry %s: upstream is required", alias)
+			}
+			upstreamConfig := paramsConfig.GetSubConfig("upstream")
+			upstreamURL := upstreamConfig.GetString("url")
+			if upstreamURL == "" {
+				return fmt.Errorf("registry %s: upstream.url is required", alias)
+			}
+			upstream := &models.UpstreamRegistry{
+				URL:      upstreamURL,
+				Username: upstreamConfig.GetString("username"),
+				Password: upstreamConfig.GetString("password"),
+				TTL:      int64(upstreamConfig.GetInt("ttl")),
+			}
+
+			cacheTTL := int64(paramsConfig.GetInt("cacheTTL"))
+			params = []interface{}{storageAlias, upstream, cacheTTL}
+
+		case "docker.registry.private":
+			storageAlias := paramsConfig.GetString("storageAlias")
+			if storageAlias == "" {
+				return fmt.Errorf("registry %s: storageAlias is required", alias)
+			}
+			description := paramsConfig.GetString("description")
+			params = []interface{}{storageAlias, description}
+
+		default:
+			return fmt.Errorf("registry %s: unknown class %s", alias, className)
+		}
+
+		// Create registry instance
+		_, err := rm.Create(className, alias, serviceBinding, params...)
+		if err != nil {
+			return fmt.Errorf("failed to create registry %s: %w", alias, err)
+		}
+	}
+
+	return nil
 }
