@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 // TestHashComputingArtifactStorageUnknownHashDetection tests unknown hash detection

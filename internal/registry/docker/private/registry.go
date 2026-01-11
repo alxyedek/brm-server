@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net"
 
-	"brm/internal/storage"
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/internal/storage"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 // DockerRegistryPrivate implements a private Docker registry that stores artifacts locally

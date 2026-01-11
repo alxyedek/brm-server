@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
 
 	"github.com/google/uuid"
 )

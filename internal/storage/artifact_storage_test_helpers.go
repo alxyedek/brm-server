@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 // Helper function to create test data

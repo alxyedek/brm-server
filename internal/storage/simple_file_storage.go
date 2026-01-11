@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 // SimpleFileStorage implements models.ArtifactStorage

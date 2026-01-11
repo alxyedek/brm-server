@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 // DockerRegistryProxyService handles core registry logic: cache management and upstream communication

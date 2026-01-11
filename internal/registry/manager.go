@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"sync"
 
-	"brm/internal/registry/docker/private"
-	"brm/internal/registry/docker/proxy"
-	"brm/pkg/config"
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
+
+	"github.com/basakil/brm-config/pkg/config"
+	"github.com/basakil/brm-server/internal/registry/docker/private"
+	"github.com/basakil/brm-server/internal/registry/docker/proxy"
 )
 
 var (

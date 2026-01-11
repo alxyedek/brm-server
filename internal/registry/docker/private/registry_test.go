@@ -4,8 +4,8 @@ import (
 	"net"
 	"testing"
 
-	"brm/internal/storage"
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/internal/storage"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 // setupTestRegistry creates a test registry instance

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
 
 	"github.com/gofrs/flock"
 )

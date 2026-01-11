@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"net"
 
-	"brm/internal/storage"
-	"brm/pkg/models"
+	"github.com/basakil/brm-server/pkg/models"
+
+	"github.com/basakil/brm-server/internal/storage"
 )
 
 // DockerRegistryProxy implements a Docker registry proxy that caches artifacts from upstream registries

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"brm/pkg/config"
-	"brm/pkg/models"
+	"github.com/basakil/brm-config/pkg/config"
+	"github.com/basakil/brm-server/pkg/models"
 )
 
 var (
